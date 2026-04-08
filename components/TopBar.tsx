@@ -2,7 +2,9 @@
 
 import { Bell, Search, RefreshCw, Sun, Moon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
+import { clearAuthSession, getAdminProfile } from '@/lib/auth';
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
     '/dashboard': { title: 'Overview', subtitle: 'Payment infrastructure overview' },
@@ -20,7 +22,9 @@ export default function TopBar() {
     const pathname = usePathname();
     const page = pageTitles[pathname] || { title: 'Dashboard', subtitle: '' };
     const { theme, setTheme } = useTheme();
+    const router = useRouter();
     const dark = theme !== 'light';
+    const admin = getAdminProfile();
 
     return (
         <header
@@ -97,6 +101,21 @@ export default function TopBar() {
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-green" />
                     <span className="text-xs text-emerald-400 font-medium">Live</span>
                 </div>
+
+                <button
+                    className="px-2.5 py-1.5 rounded-lg text-xs border"
+                    style={{
+                        borderColor: dark ? 'rgba(100,55,180,0.28)' : 'rgba(196,177,245,0.5)',
+                        color: 'var(--text-secondary)',
+                    }}
+                    title={admin ? `${admin.email} (${admin.role})` : 'Logged in admin'}
+                    onClick={() => {
+                        clearAuthSession();
+                        router.replace('/login');
+                    }}
+                >
+                    Logout
+                </button>
             </div>
         </header>
     );

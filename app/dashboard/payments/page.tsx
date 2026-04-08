@@ -1,145 +1,244 @@
 'use client';
 
-import {
-    CheckCircle2, Clock, XCircle, ArrowUpRight, ArrowDownRight,
-    Globe, ArrowDownToLine, ArrowUpFromLine, Repeat2, BarChart3
-} from 'lucide-react';
-import {
-    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from 'recharts';
+import { useEffect, useState } from 'react';
+import { ApiError, apiRequest } from '@/lib/api';
 
-const hourlyData = [
-    { h: '6am', vol: 120 }, { h: '8am', vol: 340 }, { h: '10am', vol: 580 },
-    { h: '12pm', vol: 890 }, { h: '2pm', vol: 750 }, { h: '4pm', vol: 670 },
-    { h: '6pm', vol: 490 }, { h: '8pm', vol: 320 },
-];
+type SetupFeePayment = {
+  id: string;
+  merchant_id: string;
+  merchant_name?: string | null;
+  merchant_email?: string | null;
+  amount_usd: number;
+  payment_method: string;
+  status: string;
+  created_at: string;
+  completed_at?: string | null;
+};
 
-const paymentStats = [
-    { label: 'Processed Today', value: '₦ 1.24B', change: '+12.5%', up: true, icon: BarChart3 },
-    { label: 'Successful', value: '47,523', change: '98.4%', up: true, icon: CheckCircle2 },
-    { label: 'Pending', value: '156', change: 'Processing', up: null, icon: Clock },
-    { label: 'Refunded', value: '₦ 4.2M', change: '89 txns', up: false, icon: Repeat2 },
-];
+type SetupFeeResponse = {
+  payments: SetupFeePayment[];
+  total: number;
+  limit: number;
+  offset: number;
+};
 
-const methods = [
-    { name: 'Onchain Payments', icon: Globe, volume: '₦ 541M', txns: '18,420', success: '99.2%', iconBg: 'bg-violet-500/10', iconColor: 'text-violet-400' },
-    { name: 'Onramp', icon: ArrowDownToLine, volume: '₦ 374M', txns: '12,840', success: '98.7%', iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-400' },
-    { name: 'Off-ramp (Withdrawals)', icon: ArrowUpFromLine, volume: '₦ 328M', txns: '10,290', success: '97.9%', iconBg: 'bg-violet-500/10', iconColor: 'text-violet-400' },
-];
+type MerchantLookupResponse = {
+  merchant: {
+    id: string;
+    name: string;
+    email: string;
+    live_access_enabled: boolean;
+  };
+};
+
+type SettlementRow = {
+  id: string;
+  payment_id: string;
+  payment_token?: string | null;
+  settlement_token?: string | null;
+  amount_settled?: string | null;
+  status?: string | null;
+  provider?: string | null;
+  created_at: string;
+  completed_at?: string | null;
+  transaction_signature?: string | null;
+};
 
 export default function PaymentsPage() {
-    return (
-        <div className="space-y-6 max-w-screen-2xl">
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {paymentStats.map((s) => (
-                    <div key={s.label} className="glass-card rounded-xl p-5 card-hover">
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="w-9 h-9 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                                <s.icon size={15} className="text-violet-400" />
-                            </div>
-                            {s.up !== null && (
-                                <span className={`flex items-center gap-0.5 text-xs font-medium ${s.up ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                    {s.up ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />} {s.change}
-                                </span>
-                            )}
-                        </div>
-                        <p className="text-[11px] text-slate-500 mb-0.5">{s.label}</p>
-                        <p className="text-xl font-bold text-slate-100">{s.value}</p>
-                    </div>
-                ))}
-            </div>
+  const [setupFees, setSetupFees] = useState<SetupFeePayment[]>([]);
+  const [statusFilter, setStatusFilter] = useState('');
 
-            {/* Volume chart */}
-            <div className="glass-card rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-slate-200 mb-1">Payment Volume — Today</h3>
-                <p className="text-xs text-slate-500 mb-4">₦ Millions by hour — all payment types</p>
-                <ResponsiveContainer width="100%" height={200}>
-                    <AreaChart data={hourlyData} margin={{ left: -20, right: 0 }}>
-                        <defs>
-                            <linearGradient id="payGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                            </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#6437b430" />
-                        <XAxis dataKey="h" tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ background: '#120d22', border: '1px solid #6437b445', borderRadius: '8px', color: '#e2e8f0', fontSize: 12 }} formatter={(v) => [`₦ ${v}M`, 'Volume']} />
-                        <Area type="monotone" dataKey="vol" stroke="#8b5cf6" strokeWidth={2} fill="url(#payGrad)" name="Volume" />
-                    </AreaChart>
-                </ResponsiveContainer>
-            </div>
+  const [lookupEmail, setLookupEmail] = useState('');
+  const [merchant, setMerchant] = useState<MerchantLookupResponse['merchant'] | null>(null);
+  const [settlements, setSettlements] = useState<SettlementRow[]>([]);
+  const [grantReason, setGrantReason] = useState('manual_enable_from_admin_console');
 
-            {/* Payment type breakdown */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {methods.map((m) => (
-                    <div key={m.name} className="glass-card rounded-xl p-5 card-hover">
-                        <div className={`w-10 h-10 rounded-xl ${m.iconBg} flex items-center justify-center mb-4`}>
-                            <m.icon size={18} className={m.iconColor} />
-                        </div>
-                        <p className="text-xs text-slate-500 mb-0.5">{m.name}</p>
-                        <p className="text-xl font-bold text-slate-100 mb-4">{m.volume}</p>
-                        <div className="space-y-2 text-xs">
-                            <div className="flex justify-between text-slate-400">
-                                <span>Transactions</span><span className="text-slate-300">{m.txns}</span>
-                            </div>
-                            <div className="flex justify-between text-slate-400">
-                                <span>Success Rate</span><span className="text-emerald-400 font-semibold">{m.success}</span>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-            {/* Pending settlements */}
-            <div className="glass-card rounded-xl">
-                <div className="flex items-center justify-between p-5 border-b border-[#1e3a5f]/40">
-                    <div>
-                        <h3 className="text-sm font-semibold text-slate-200">Pending Settlements</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">Awaiting batch processing</p>
-                    </div>
-                    <button className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors">
-                        Process All
-                    </button>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="text-xs text-slate-500 border-b border-[#1e3a5f]/30">
-                                {['Batch ID', 'Merchant', 'Amount', 'Transactions', 'Scheduled', 'Status'].map((h) => (
-                                    <th key={h} className="text-left px-5 py-3 font-medium">{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {[
-                                { id: 'STL-0441', merchant: 'Paystack Inc.', amount: '₦ 14.8M', txns: '2,840', scheduled: '2026-02-22 18:00', status: 'pending' },
-                                { id: 'STL-0440', merchant: 'Flutterwave', amount: '₦ 8.2M', txns: '1,520', scheduled: '2026-02-22 18:00', status: 'pending' },
-                                { id: 'STL-0439', merchant: 'Interswitch', amount: '₦ 22.7M', txns: '4,130', scheduled: '2026-02-22 18:00', status: 'processing' },
-                                { id: 'STL-0438', merchant: 'Moniepoint', amount: '₦ 5.9M', txns: '980', scheduled: '2026-02-22 17:00', status: 'completed' },
-                            ].map((row) => (
-                                <tr key={row.id} className="table-row-hover border-b border-[#1e3a5f]/20 last:border-0">
-                                    <td className="px-5 py-3 font-mono text-xs text-violet-400">{row.id}</td>
-                                    <td className="px-5 py-3 text-xs text-slate-300">{row.merchant}</td>
-                                    <td className="px-5 py-3 text-xs font-semibold text-slate-100">{row.amount}</td>
-                                    <td className="px-5 py-3 text-xs text-slate-400">{row.txns}</td>
-                                    <td className="px-5 py-3 text-xs text-slate-500">{row.scheduled}</td>
-                                    <td className="px-5 py-3">
-                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${row.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                            row.status === 'processing' ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' :
-                                                'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                            }`}>
-                                            {row.status === 'completed' ? <CheckCircle2 size={11} /> : <Clock size={11} />}
-                                            {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+  async function loadSetupFees() {
+    setError(null);
+    const query = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : '';
+    try {
+      const data = await apiRequest<SetupFeeResponse>(`/admin/setup-fees${query}`);
+      setSetupFees(data.payments);
+    } catch (e) {
+      setError(e instanceof ApiError ? `Failed to load setup-fee payments (${e.status})` : 'Failed to load setup-fee payments');
+    }
+  }
+
+  useEffect(() => {
+    loadSetupFees();
+  }, []);
+
+  async function findMerchant() {
+    if (!lookupEmail.trim()) return;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const data = await apiRequest<MerchantLookupResponse>(`/admin/merchants/by-email?email=${encodeURIComponent(lookupEmail.trim())}`);
+      setMerchant(data.merchant);
+      const rows = await apiRequest<SettlementRow[]>(`/admin/settlements/${data.merchant.id}`);
+      setSettlements(rows);
+    } catch (e) {
+      setMerchant(null);
+      setSettlements([]);
+      setError(e instanceof ApiError ? `Merchant lookup failed (${e.status})` : 'Merchant lookup failed');
+    }
+    setBusy(false);
+  }
+
+  async function grantLiveAccess() {
+    if (!merchant) return;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await apiRequest('/admin/setup-fees/enable', {
+        method: 'POST',
+        body: { merchant_id: merchant.id, reason: grantReason || 'manual_enable_from_admin_console' },
+      });
+      setSuccess('Live access enabled for merchant');
+      await findMerchant();
+      await loadSetupFees();
+    } catch (e) {
+      setError(e instanceof ApiError ? `Failed to enable live access (${e.status})` : 'Failed to enable live access');
+    }
+    setBusy(false);
+  }
+
+  async function disableLiveAccess() {
+    if (!merchant) return;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await apiRequest(`/admin/setup-fees/disable/${merchant.id}`, { method: 'POST' });
+      setSuccess('Live access disabled for merchant');
+      await findMerchant();
+      await loadSetupFees();
+    } catch (e) {
+      setError(e instanceof ApiError ? `Failed to disable live access (${e.status})` : 'Failed to disable live access');
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="space-y-4 max-w-6xl">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold">Payments And Settlement Operations</h2>
+        <button className="px-2 py-1 rounded bg-violet-600 text-white text-xs" onClick={loadSetupFees}>Refresh</button>
+      </div>
+
+      {error && <p className="text-sm text-red-400">{error}</p>}
+      {success && <p className="text-sm text-emerald-400">{success}</p>}
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="glass-card rounded-xl p-4 space-y-3">
+          <h3 className="text-sm font-semibold">Merchant Lookup</h3>
+          <div className="flex gap-2">
+            <input
+              className="input-field flex-1 px-3 py-2"
+              placeholder="merchant@email.com"
+              value={lookupEmail}
+              onChange={(e) => setLookupEmail(e.target.value)}
+            />
+            <button className="px-3 py-2 rounded bg-cyan-700 text-white text-xs" onClick={findMerchant} disabled={busy}>Find</button>
+          </div>
+
+          {merchant && (
+            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'var(--border)' }}>
+              <p className="text-sm font-medium">{merchant.name}</p>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{merchant.email}</p>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Live access: {merchant.live_access_enabled ? 'enabled' : 'disabled'}
+              </p>
+              <input
+                className="input-field w-full px-3 py-2"
+                placeholder="Grant reason"
+                value={grantReason}
+                onChange={(e) => setGrantReason(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <button className="px-2 py-1 rounded bg-emerald-700 text-white text-xs" onClick={grantLiveAccess} disabled={busy}>Enable Live Access</button>
+                <button className="px-2 py-1 rounded bg-zinc-700 text-white text-xs" onClick={disableLiveAccess} disabled={busy}>Disable Live Access</button>
+              </div>
             </div>
+          )}
         </div>
-    );
+
+        <div className="glass-card rounded-xl p-4">
+          <h3 className="text-sm font-semibold mb-3">Settlement History</h3>
+          <div className="overflow-auto max-h-72">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ color: 'var(--text-muted)' }}>
+                  <th className="text-left py-2">Settlement</th>
+                  <th className="text-left py-2">Token</th>
+                  <th className="text-left py-2">Amount</th>
+                  <th className="text-left py-2">Status</th>
+                  <th className="text-left py-2">When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {settlements.map((s) => (
+                  <tr key={s.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
+                    <td className="py-2 font-mono text-xs">{s.id.slice(0, 8)}...</td>
+                    <td className="py-2">{s.settlement_token ?? s.payment_token ?? '-'}</td>
+                    <td className="py-2">{s.amount_settled ?? '-'}</td>
+                    <td className="py-2">{s.status ?? '-'}</td>
+                    <td className="py-2">{new Date(s.created_at).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-card rounded-xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold">Setup Fee Payments</h3>
+          <div className="flex items-center gap-2">
+            <input
+              className="input-field px-2 py-1 text-xs"
+              placeholder="status filter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            />
+            <button className="px-2 py-1 rounded bg-violet-600 text-white text-xs" onClick={loadSetupFees}>Apply</button>
+          </div>
+        </div>
+
+        <div className="overflow-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ color: 'var(--text-muted)' }}>
+                <th className="text-left py-2">Payment</th>
+                <th className="text-left py-2">Merchant</th>
+                <th className="text-left py-2">Amount</th>
+                <th className="text-left py-2">Method</th>
+                <th className="text-left py-2">Status</th>
+                <th className="text-left py-2">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {setupFees.map((p) => (
+                <tr key={p.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
+                  <td className="py-2 font-mono text-xs">{p.id.slice(0, 8)}...</td>
+                  <td className="py-2">{p.merchant_name ?? p.merchant_email ?? '-'}</td>
+                  <td className="py-2">${Number(p.amount_usd).toFixed(2)}</td>
+                  <td className="py-2">{p.payment_method}</td>
+                  <td className="py-2">{p.status}</td>
+                  <td className="py-2">{new Date(p.created_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
 }

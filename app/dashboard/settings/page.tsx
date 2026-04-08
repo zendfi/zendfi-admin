@@ -1,246 +1,344 @@
 'use client';
 
-import { useState } from 'react';
-import { useTheme } from 'next-themes';
-import { Save, Key, Copy, RefreshCw, Shield, Bell, Globe, Database, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
-import clsx from 'clsx';
+import { useEffect, useMemo, useState } from 'react';
+import { apiRequest, ApiError } from '@/lib/api';
 
-type SettingsTab = 'general' | 'api_keys' | 'security' | 'notifications';
+type SettingsTab = 'general' | 'notifications' | 'security' | 'events' | 'api_keys';
 
-const apiKeys = [
-    { id: 'pk_1', label: 'Live Public Key', value: 'pk_live_••••••••••••••••8841', type: 'public', env: 'live' },
-    { id: 'sk_1', label: 'Live Secret Key', value: 'sk_live_••••••••••••••••2291', type: 'secret', env: 'live' },
-    { id: 'pk_2', label: 'Test Public Key', value: 'pk_test_••••••••••••••••5510', type: 'public', env: 'test' },
-    { id: 'sk_2', label: 'Test Secret Key', value: 'sk_test_••••••••••••••••7734', type: 'secret', env: 'test' },
-];
+type GeneralSettings = {
+  business_name: string;
+  support_email: string;
+  website_url?: string | null;
+  timezone: string;
+  maintenance_mode: boolean;
+  live_mode: boolean;
+};
+
+type Channel = { email: boolean; sms: boolean; push: boolean };
+
+type NotificationsSettings = {
+  transaction_failures: Channel;
+  compliance_alerts: Channel;
+  settlement_completed: Channel;
+  new_support_ticket: Channel;
+  security_events: Channel;
+  system_downtime: Channel;
+  weekly_report: Channel;
+};
+
+type SecurityPolicy = {
+  session_timeout_minutes: number;
+  require_2fa: boolean;
+  password_policy: string;
+  allowed_ip_ranges: string[];
+};
+
+type SecurityEvent = {
+  id: string;
+  action: string;
+  admin_id: string;
+  admin_email?: string | null;
+  resource_type?: string | null;
+  status: string;
+  ip_address?: string | null;
+  created_at: string;
+  details: unknown;
+};
+
+type ApiKeyItem = {
+  id: string;
+  merchant_id: string;
+  merchant_name?: string | null;
+  merchant_email?: string | null;
+  mode: string;
+  is_active: boolean;
+  created_at: string;
+  last_used_at?: string | null;
+  key_preview: string;
+};
 
 export default function SettingsPage() {
-    const { theme } = useTheme();
-    const dark = theme !== 'light';
-    const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-    const [saved, setSaved] = useState(false);
-    const [revealed, setRevealed] = useState<string[]>([]);
+  const [tab, setTab] = useState<SettingsTab>('general');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-    const tabs: { key: SettingsTab; label: string; icon: React.ReactNode }[] = [
-        { key: 'general', label: 'General', icon: <Globe size={14} /> },
-        { key: 'api_keys', label: 'API Keys', icon: <Key size={14} /> },
-        { key: 'security', label: 'Security', icon: <Shield size={14} /> },
-        { key: 'notifications', label: 'Notifications', icon: <Bell size={14} /> },
-    ];
+  const [general, setGeneral] = useState<GeneralSettings | null>(null);
+  const [notifications, setNotifications] = useState<NotificationsSettings | null>(null);
+  const [security, setSecurity] = useState<SecurityPolicy | null>(null);
+  const [events, setEvents] = useState<SecurityEvent[]>([]);
+  const [apiKeys, setApiKeys] = useState<ApiKeyItem[]>([]);
+  const [rotatedSecret, setRotatedSecret] = useState<string | null>(null);
 
-    const handleSave = () => {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2500);
-    };
+  async function loadAll() {
+    setLoading(true);
+    setError(null);
+    try {
+      const [g, n, s, ev, keys] = await Promise.all([
+        apiRequest<GeneralSettings>('/admin/settings/general'),
+        apiRequest<NotificationsSettings>('/admin/settings/notifications'),
+        apiRequest<SecurityPolicy>('/admin/settings/security-policy'),
+        apiRequest<SecurityEvent[]>('/admin/settings/security-events'),
+        apiRequest<ApiKeyItem[]>('/admin/settings/api-keys'),
+      ]);
 
-    const toggleReveal = (id: string) => {
-        setRevealed((r) => r.includes(id) ? r.filter((x) => x !== id) : [...r, id]);
-    };
+      setGeneral(g);
+      setNotifications(n);
+      setSecurity(s);
+      setEvents(ev);
+      setApiKeys(keys);
+    } catch (e) {
+      setError(e instanceof ApiError ? `Failed loading settings (${e.status})` : 'Failed loading settings');
+    }
+    setLoading(false);
+  }
 
-    return (
-        <div className="max-w-3xl space-y-6">
-            {/* Tabs */}
-            <div className="flex items-center gap-1 rounded-xl p-1 w-fit border"
-                style={{
-                    background: dark ? 'rgba(18,13,34,0.9)' : 'rgba(255,255,255,0.95)',
-                    borderColor: dark ? 'rgba(100,55,180,0.28)' : 'rgba(196,177,245,0.5)',
-                }}>
-                {tabs.map((t) => (
-                    <button
-                        key={t.key}
-                        onClick={() => setActiveTab(t.key)}
-                        className={clsx(
-                            'flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-all',
-                            activeTab === t.key ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30' : 'text-slate-500 hover:text-slate-300'
-                        )}
-                    >
-                        {t.icon} {t.label}
-                    </button>
-                ))}
-            </div>
+  useEffect(() => {
+    loadAll();
+  }, []);
 
-            {/* General */}
-            {activeTab === 'general' && (
-                <div className="glass-card rounded-xl divide-y divide-[#1e3a5f]/40">
-                    <div className="p-5">
-                        <h3 className="text-sm font-semibold text-slate-200 mb-1">Business Profile</h3>
-                        <p className="text-xs text-slate-500">Your organization details displayed across the platform.</p>
-                    </div>
-                    <div className="p-5 space-y-4">
-                        {[
-                            { label: 'Business Name', value: 'ZendFi Technologies Ltd', type: 'text' },
-                            { label: 'Support Email', value: 'support@zendfi.io', type: 'email' },
-                            { label: 'Business Address', value: '12 Marina Road, Lagos Island, Lagos', type: 'text' },
-                            { label: 'Website URL', value: 'https://zendfi.io', type: 'url' },
-                            { label: 'Settlement Account', value: '0123456789 — GTBank', type: 'text' },
-                        ].map((f) => (
-                            <div key={f.label} className="grid grid-cols-3 gap-4 items-center">
-                                <label className="text-xs text-slate-400 font-medium">{f.label}</label>
-                                <input type={f.type} defaultValue={f.value} className="input-field col-span-2 px-3 py-2 text-sm" />
-                            </div>
-                        ))}
-                    </div>
-                    <div className="p-5">
-                        <h3 className="text-sm font-semibold text-slate-200 mb-4">Platform Configuration</h3>
-                        <div className="space-y-3">
-                            {[
-                                { label: 'Maintenance Mode', desc: 'Temporarily disable all payment processing', checked: false },
-                                { label: 'Two-Factor Auth Required', desc: 'Enforce 2FA for all admin accounts', checked: true },
-                                { label: 'Live Mode', desc: 'Accept real transactions (disable for test mode)', checked: true },
-                            ].map((toggle) => (
-                                <div key={toggle.label} className="flex items-center justify-between py-2">
-                                    <div>
-                                        <p className="text-xs font-medium text-slate-200">{toggle.label}</p>
-                                        <p className="text-[11px] text-slate-500 mt-0.5">{toggle.desc}</p>
-                                    </div>
-                                    <button className={clsx('w-10 h-5 rounded-full transition-colors relative', toggle.checked ? 'bg-violet-600' : 'bg-slate-700')}>
-                                        <span className={clsx('absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform', toggle.checked ? 'translate-x-5' : 'translate-x-0.5')} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
+  const tabs = useMemo(
+    () => [
+      { key: 'general' as const, label: 'General' },
+      { key: 'notifications' as const, label: 'Notifications' },
+      { key: 'security' as const, label: 'Security Policy' },
+      { key: 'events' as const, label: 'Security Events' },
+      { key: 'api_keys' as const, label: 'API Keys' },
+    ],
+    [],
+  );
 
-            {/* API Keys */}
-            {activeTab === 'api_keys' && (
-                <div className="glass-card rounded-xl divide-y divide-[#1e3a5f]/40">
-                    <div className="p-5">
-                        <h3 className="text-sm font-semibold text-slate-200 mb-1">API Keys</h3>
-                        <p className="text-xs text-slate-500">Keep your secret keys secure. Never expose them in client-side code.</p>
-                    </div>
-                    <div className="divide-y divide-[#1e3a5f]/30">
-                        {apiKeys.map((k) => (
-                            <div key={k.id} className="p-5 flex items-center gap-4">
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <p className="text-xs font-medium text-slate-200">{k.label}</p>
-                                        <span className={clsx('text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded font-bold', k.env === 'live' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400')}>
-                                            {k.env}
-                                        </span>
-                                    </div>
-                                    <p className="text-xs font-mono text-slate-400 truncate">
-                                        {revealed.includes(k.id) ? 'sk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx8841' : k.value}
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                    {k.type === 'secret' && (
-                                        <button onClick={() => toggleReveal(k.id)} className="p-1.5 rounded-lg hover:bg-white/5 text-slate-500 hover:text-slate-300 transition-colors">
-                                            {revealed.includes(k.id) ? <EyeOff size={13} /> : <Eye size={13} />}
-                                        </button>
-                                    )}
-                                    <button className="p-1.5 rounded-lg hover:bg-white/5 text-slate-500 hover:text-slate-300 transition-colors">
-                                        <Copy size={13} />
-                                    </button>
-                                    <button className="p-1.5 rounded-lg hover:bg-white/5 text-slate-500 hover:text-red-400 transition-colors">
-                                        <RefreshCw size={13} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
+  async function saveGeneral() {
+    if (!general) return;
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const updated = await apiRequest<GeneralSettings>('/admin/settings/general', {
+        method: 'PATCH',
+        body: general,
+      });
+      setGeneral(updated);
+      setSuccess('General settings saved.');
+    } catch (e) {
+      setError(e instanceof ApiError ? `Save failed (${e.status})` : 'Save failed');
+    }
+    setSaving(false);
+  }
 
-            {/* Security */}
-            {activeTab === 'security' && (
-                <div className="glass-card rounded-xl divide-y divide-[#1e3a5f]/40">
-                    <div className="p-5">
-                        <h3 className="text-sm font-semibold text-slate-200 mb-1">Security Settings</h3>
-                        <p className="text-xs text-slate-500">Configure authentication and access security policies.</p>
-                    </div>
-                    <div className="p-5 space-y-4">
-                        {(
-                            [
-                                { label: 'Session Timeout', kind: 'select', options: ['15 minutes', '30 minutes', '1 hour', '4 hours'] },
-                                { label: 'IP Allowlist', kind: 'input', placeholder: '192.168.1.0/24, 10.0.0.1' },
-                                { label: 'Password Policy', kind: 'select', options: ['Standard (8+ chars)', 'Strong (12+ chars, special chars)', 'Very Strong (16+ chars)'] },
-                            ] as (
-                                | { label: string; kind: 'select'; options: string[] }
-                                | { label: string; kind: 'input'; placeholder: string }
-                            )[]
-                        ).map((f) => (
-                            <div key={f.label} className="grid grid-cols-3 gap-4 items-center">
-                                <label className="text-xs text-slate-400 font-medium">{f.label}</label>
-                                {f.kind === 'select' ? (
-                                    <select className="input-field col-span-2 px-3 py-2 text-sm">
-                                        {f.options.map((o) => <option key={o}>{o}</option>)}
-                                    </select>
-                                ) : (
-                                    <input type="text" placeholder={f.placeholder} className="input-field col-span-2 px-3 py-2 text-sm" />
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                    <div className="p-5">
-                        <h3 className="text-sm font-semibold text-slate-200 mb-3">Recent Security Events</h3>
-                        {[
-                            { event: 'Admin login', user: 'seun@zendfi.io', ip: '197.211.58.104', time: '2026-02-22 15:30', ok: true },
-                            { event: 'Failed login attempt', user: 'unknown', ip: '45.95.147.28', time: '2026-02-22 14:12', ok: false },
-                            { event: 'API key rotated', user: 'ngozi@zendfi.io', ip: '197.211.58.104', time: '2026-02-21 11:45', ok: true },
-                        ].map((e, i) => (
-                            <div key={i} className="flex items-center gap-3 py-2.5 border-b border-[#1e3a5f]/20 last:border-0">
-                                {e.ok ? <CheckCircle2 size={14} className="text-emerald-400 shrink-0" /> : <Shield size={14} className="text-red-400 shrink-0" />}
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs text-slate-200">{e.event} — <span className="text-slate-400">{e.user}</span></p>
-                                    <p className="text-[11px] text-slate-600">IP: {e.ip}</p>
-                                </div>
-                                <span className="text-[10px] text-slate-600 shrink-0">{e.time}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
+  async function saveNotifications() {
+    if (!notifications) return;
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const updated = await apiRequest<NotificationsSettings>('/admin/settings/notifications', {
+        method: 'PATCH',
+        body: notifications,
+      });
+      setNotifications(updated);
+      setSuccess('Notifications settings saved.');
+    } catch (e) {
+      setError(e instanceof ApiError ? `Save failed (${e.status})` : 'Save failed');
+    }
+    setSaving(false);
+  }
 
-            {/* Notifications */}
-            {activeTab === 'notifications' && (
-                <div className="glass-card rounded-xl divide-y divide-[#1e3a5f]/40">
-                    <div className="p-5">
-                        <h3 className="text-sm font-semibold text-slate-200 mb-1">Notification Preferences</h3>
-                        <p className="text-xs text-slate-500">Choose what alerts and updates you receive.</p>
-                    </div>
-                    <div className="p-5 space-y-3">
-                        {[
-                            { label: 'Transaction Failures', desc: 'Alert when payment failure rate exceeds threshold', email: true, sms: false, push: true },
-                            { label: 'Compliance Alerts', desc: 'Notify on new KYC/AML flags', email: true, sms: true, push: true },
-                            { label: 'Settlement Completed', desc: 'Confirm when settlement batches are processed', email: true, sms: false, push: false },
-                            { label: 'New Support Ticket', desc: 'Alert on incoming merchant support requests', email: false, sms: false, push: true },
-                            { label: 'Security Events', desc: 'Failed logins, key rotations, permission changes', email: true, sms: true, push: true },
-                            { label: 'System Downtime', desc: 'Notify on service degradation or outages', email: true, sms: true, push: true },
-                            { label: 'Weekly Report', desc: 'Summary of volume, success rates, and compliance', email: true, sms: false, push: false },
-                        ].map((n) => (
-                            <div key={n.label} className="grid grid-cols-5 items-center gap-3 py-2.5 border-b border-[#1e3a5f]/20 last:border-0">
-                                <div className="col-span-2">
-                                    <p className="text-xs font-medium text-slate-200">{n.label}</p>
-                                    <p className="text-[11px] text-slate-500 mt-0.5">{n.desc}</p>
-                                </div>
-                                {(['email', 'sms', 'push'] as const).map((ch) => (
-                                    <div key={ch} className="flex flex-col items-center gap-1">
-                                        <p className="text-[9px] text-slate-600 uppercase tracking-wide">{ch}</p>
-                                        <button className={clsx('w-8 h-4 rounded-full transition-colors relative', n[ch] ? 'bg-violet-500' : 'bg-slate-700')}>
-                                            <span className={clsx('absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform', n[ch] ? 'translate-x-4' : 'translate-x-0.5')} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
+  async function saveSecurity() {
+    if (!security) return;
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const updated = await apiRequest<SecurityPolicy>('/admin/settings/security-policy', {
+        method: 'PATCH',
+        body: security,
+      });
+      setSecurity(updated);
+      setSuccess('Security policy saved.');
+    } catch (e) {
+      setError(e instanceof ApiError ? `Save failed (${e.status})` : 'Save failed');
+    }
+    setSaving(false);
+  }
 
-            {/* Save button */}
-            <div className="flex justify-end">
-                <button
-                    onClick={handleSave}
-                    className={clsx(
-                        'flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all',
-                        saved ? 'bg-emerald-600 text-white' : 'bg-violet-600 hover:bg-violet-500 text-white'
-                    )}
-                >
-                    {saved ? <><CheckCircle2 size={14} /> Saved!</> : <><Save size={14} /> Save Changes</>}
-                </button>
-            </div>
+  async function rotateApiKey(id: string) {
+    setError(null);
+    setSuccess(null);
+    try {
+      const result = await apiRequest<{ key: string; message: string }>(`/admin/settings/api-keys/${id}/rotate`, {
+        method: 'POST',
+      });
+      setRotatedSecret(result.key);
+      setSuccess(result.message);
+      const keys = await apiRequest<ApiKeyItem[]>('/admin/settings/api-keys');
+      setApiKeys(keys);
+    } catch (e) {
+      setError(e instanceof ApiError ? `Rotate failed (${e.status})` : 'Rotate failed');
+    }
+  }
+
+  function updateChannel(group: keyof NotificationsSettings, field: keyof Channel, value: boolean) {
+    if (!notifications) return;
+    setNotifications({
+      ...notifications,
+      [group]: {
+        ...notifications[group],
+        [field]: value,
+      },
+    });
+  }
+
+  if (loading) {
+    return <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading settings...</div>;
+  }
+
+  return (
+    <div className="space-y-4 max-w-5xl">
+      <div className="flex items-center gap-2 flex-wrap">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            className={`px-3 py-1.5 rounded-lg text-xs border ${tab === t.key ? 'bg-violet-500/20 text-violet-300 border-violet-400/40' : ''}`}
+            style={{
+              borderColor: tab === t.key ? '' : 'var(--border)',
+              color: tab === t.key ? '' : 'var(--text-secondary)',
+            }}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {error && <div className="text-sm text-red-400">{error}</div>}
+      {success && <div className="text-sm text-emerald-400">{success}</div>}
+
+      {tab === 'general' && general && (
+        <div className="glass-card rounded-xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold">General</h2>
+          <input className="input-field w-full px-3 py-2" value={general.business_name} onChange={(e) => setGeneral({ ...general, business_name: e.target.value })} placeholder="Business name" />
+          <input className="input-field w-full px-3 py-2" value={general.support_email} onChange={(e) => setGeneral({ ...general, support_email: e.target.value })} placeholder="Support email" />
+          <input className="input-field w-full px-3 py-2" value={general.website_url ?? ''} onChange={(e) => setGeneral({ ...general, website_url: e.target.value })} placeholder="Website URL" />
+          <input className="input-field w-full px-3 py-2" value={general.timezone} onChange={(e) => setGeneral({ ...general, timezone: e.target.value })} placeholder="Timezone" />
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={general.maintenance_mode} onChange={(e) => setGeneral({ ...general, maintenance_mode: e.target.checked })} /> Maintenance mode</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={general.live_mode} onChange={(e) => setGeneral({ ...general, live_mode: e.target.checked })} /> Live mode</label>
+          <button className="px-3 py-2 rounded-lg bg-violet-600 text-white text-sm" disabled={saving} onClick={saveGeneral}>{saving ? 'Saving...' : 'Save general'}</button>
         </div>
-    );
+      )}
+
+      {tab === 'notifications' && notifications && (
+        <div className="glass-card rounded-xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold">Notifications</h2>
+          {(Object.keys(notifications) as Array<keyof NotificationsSettings>).map((group) => (
+            <div key={group} className="border rounded-lg p-3" style={{ borderColor: 'var(--border)' }}>
+              <p className="text-sm mb-2" style={{ color: 'var(--text-primary)' }}>{group}</p>
+              <div className="flex gap-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                {(['email', 'sms', 'push'] as Array<keyof Channel>).map((field) => (
+                  <label key={field} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={notifications[group][field]}
+                      onChange={(e) => updateChannel(group, field, e.target.checked)}
+                    />
+                    {field}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+          <button className="px-3 py-2 rounded-lg bg-violet-600 text-white text-sm" disabled={saving} onClick={saveNotifications}>{saving ? 'Saving...' : 'Save notifications'}</button>
+        </div>
+      )}
+
+      {tab === 'security' && security && (
+        <div className="glass-card rounded-xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold">Security Policy</h2>
+          <label className="text-sm">Session timeout (minutes)</label>
+          <input type="number" className="input-field w-full px-3 py-2" value={security.session_timeout_minutes} onChange={(e) => setSecurity({ ...security, session_timeout_minutes: Number(e.target.value) })} />
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={security.require_2fa} onChange={(e) => setSecurity({ ...security, require_2fa: e.target.checked })} /> Require 2FA</label>
+          <label className="text-sm">Password policy</label>
+          <input className="input-field w-full px-3 py-2" value={security.password_policy} onChange={(e) => setSecurity({ ...security, password_policy: e.target.value })} />
+          <label className="text-sm">Allowed IP ranges (comma-separated)</label>
+          <input
+            className="input-field w-full px-3 py-2"
+            value={security.allowed_ip_ranges.join(', ')}
+            onChange={(e) => setSecurity({ ...security, allowed_ip_ranges: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })}
+          />
+          <button className="px-3 py-2 rounded-lg bg-violet-600 text-white text-sm" disabled={saving} onClick={saveSecurity}>{saving ? 'Saving...' : 'Save security policy'}</button>
+        </div>
+      )}
+
+      {tab === 'events' && (
+        <div className="glass-card rounded-xl p-5">
+          <h2 className="text-sm font-semibold mb-3">Security Events</h2>
+          <div className="overflow-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ color: 'var(--text-muted)' }}>
+                  <th className="text-left py-2">Time</th>
+                  <th className="text-left py-2">Action</th>
+                  <th className="text-left py-2">Admin</th>
+                  <th className="text-left py-2">Status</th>
+                  <th className="text-left py-2">IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((ev) => (
+                  <tr key={ev.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
+                    <td className="py-2">{new Date(ev.created_at).toLocaleString()}</td>
+                    <td className="py-2">{ev.action}</td>
+                    <td className="py-2">{ev.admin_email ?? ev.admin_id}</td>
+                    <td className="py-2">{ev.status}</td>
+                    <td className="py-2">{ev.ip_address ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {tab === 'api_keys' && (
+        <div className="glass-card rounded-xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold">API Keys (Masked)</h2>
+          {rotatedSecret && (
+            <div className="rounded-lg p-3 text-sm border" style={{ borderColor: 'var(--border)', color: 'var(--text-primary)' }}>
+              <p className="font-semibold text-amber-400">One-time key output</p>
+              <p className="font-mono break-all mt-1">{rotatedSecret}</p>
+            </div>
+          )}
+          <div className="overflow-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ color: 'var(--text-muted)' }}>
+                  <th className="text-left py-2">Preview</th>
+                  <th className="text-left py-2">Merchant</th>
+                  <th className="text-left py-2">Mode</th>
+                  <th className="text-left py-2">Created</th>
+                  <th className="text-left py-2">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {apiKeys.map((k) => (
+                  <tr key={k.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
+                    <td className="py-2 font-mono">{k.key_preview}</td>
+                    <td className="py-2">{k.merchant_name ?? k.merchant_email ?? k.merchant_id}</td>
+                    <td className="py-2">{k.mode}</td>
+                    <td className="py-2">{new Date(k.created_at).toLocaleString()}</td>
+                    <td className="py-2">
+                      <button className="px-2 py-1 rounded bg-violet-600 text-white text-xs" onClick={() => rotateApiKey(k.id)}>
+                        Rotate
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

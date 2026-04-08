@@ -1,279 +1,323 @@
 'use client';
 
-import { useState } from 'react';
-import {
-    AlertTriangle,
-    CheckCircle2,
-    XCircle,
-    Clock,
-    Eye,
-    FileText,
-    Filter,
-    Search,
-    Download,
-    Flag,
-    User,
-    Building2,
-    Calendar,
-    ChevronDown,
-} from 'lucide-react';
-import clsx from 'clsx';
+import { useEffect, useState } from 'react';
+import { ApiError, apiRequest } from '@/lib/api';
 
-type CaseStatus = 'pending' | 'under_review' | 'approved' | 'rejected' | 'escalated';
-type RiskLevel = 'high' | 'medium' | 'low';
-
-interface ComplianceCase {
-    id: string;
-    type: string;
-    merchant: string;
-    customer: string;
-    amount: string;
-    riskLevel: RiskLevel;
-    status: CaseStatus;
-    assignee: string;
-    submittedAt: string;
-    flag: string;
-}
-
-const cases: ComplianceCase[] = [
-    { id: 'KYC-3841', type: 'KYC Verification', merchant: 'Apex Traders Ltd', customer: 'Chukwuemeka Obi', amount: '₦ 8,400,000', riskLevel: 'high', status: 'pending', assignee: 'Unassigned', submittedAt: '2026-02-22 13:45', flag: 'PEP Match' },
-    { id: 'AML-2291', type: 'AML Investigation', merchant: 'FlowPay Inc.', customer: 'Adaeze Nwosu', amount: '₦ 2,100,000', riskLevel: 'high', status: 'under_review', assignee: 'Ngozi A.', submittedAt: '2026-02-22 11:30', flag: 'Unusual Pattern' },
-    { id: 'KYC-3840', type: 'KYC Verification', merchant: 'NovaCash Solutions', customer: 'Tunde Bakare', amount: '—', riskLevel: 'medium', status: 'pending', assignee: 'Unassigned', submittedAt: '2026-02-22 10:15', flag: 'Document Mismatch' },
-    { id: 'VEL-0142', type: 'Velocity Breach', merchant: 'SwiftRoute Ltd', customer: 'Emeka Dike', amount: '₦ 12,700,000', riskLevel: 'medium', status: 'escalated', assignee: 'Kelechi O.', submittedAt: '2026-02-22 09:00', flag: 'Volume Spike' },
-    { id: 'KYC-3839', type: 'KYC Verification', merchant: 'Jumia Nigeria', customer: 'Amara Eze', amount: '₦ 340,000', riskLevel: 'low', status: 'approved', assignee: 'Ngozi A.', submittedAt: '2026-02-22 08:20', flag: '' },
-    { id: 'AML-2290', type: 'AML Investigation', merchant: 'PayFlex Ltd', customer: 'Biodun Aliyu', amount: '₦ 5,600,000', riskLevel: 'high', status: 'rejected', assignee: 'Kelechi O.', submittedAt: '2026-02-21 17:10', flag: 'Sanctioned Entity' },
-    { id: 'KYC-3838', type: 'KYC Verification', merchant: 'Bolt Nigeria', customer: 'Chisom Okafor', amount: '₦ 80,000', riskLevel: 'low', status: 'approved', assignee: 'Ngozi A.', submittedAt: '2026-02-21 16:00', flag: '' },
-    { id: 'VEL-0141', type: 'Velocity Breach', merchant: 'Buypower Nigeria', customer: 'Seun Adeleke', amount: '₦ 900,000', riskLevel: 'medium', status: 'under_review', assignee: 'Kelechi O.', submittedAt: '2026-02-21 14:30', flag: 'Multiple Accounts' },
-];
-
-const statusConfig: Record<CaseStatus, { label: string; icon: React.ReactNode; classes: string }> = {
-    pending: { label: 'Pending', icon: <Clock size={12} />, classes: 'bg-slate-500/15 text-slate-400 border border-slate-500/20' },
-    under_review: { label: 'Under Review', icon: <Eye size={12} />, classes: 'bg-violet-500/15 text-violet-400 border border-violet-500/20' },
-    approved: { label: 'Approved', icon: <CheckCircle2 size={12} />, classes: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' },
-    rejected: { label: 'Rejected', icon: <XCircle size={12} />, classes: 'bg-red-500/15 text-red-400 border border-red-500/20' },
-    escalated: { label: 'Escalated', icon: <AlertTriangle size={12} />, classes: 'bg-amber-500/15 text-amber-400 border border-amber-500/20' },
+type FraudStats = {
+  total_flags_today: number;
+  total_flags_this_week: number;
+  unresolved_flags: number;
+  blocked_wallets: number;
+  blocked_ips: number;
+  high_risk_payments_today: number;
 };
 
-const riskConfig: Record<RiskLevel, string> = {
-    high: 'bg-red-500/15 text-red-400 border border-red-500/20',
-    medium: 'bg-amber-500/15 text-amber-400 border border-amber-500/20',
-    low: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
+type FraudFlag = {
+  id: string;
+  merchant_id?: string | null;
+  wallet_address?: string | null;
+  ip_address_text?: string | null;
+  rule_name: string;
+  severity: string;
+  fraud_score: number;
+  resolved: boolean;
+  created_at: string;
 };
 
-const summaryStats = [
-    { label: 'Total Cases', value: '47', icon: FileText, color: 'text-violet-400', bg: 'bg-violet-500/10' },
-    { label: 'Pending Review', value: '12', icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-    { label: 'High Risk', value: '8', icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
-    { label: 'Resolved Today', value: '21', icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-];
+type BlockedWallet = {
+  id: string;
+  wallet_address: string;
+  reason: string;
+  created_at: string;
+};
 
-type TabFilter = 'all' | CaseStatus | RiskLevel;
+type BlockedIp = {
+  id: string;
+  ip_address_text: string;
+  reason: string;
+  created_at: string;
+};
+
+type FraudRule = {
+  id: string;
+  name: string;
+  severity: string;
+  score_contribution: number;
+  is_enabled: boolean;
+};
 
 export default function CompliancePage() {
-    const [search, setSearch] = useState('');
-    const [activeTab, setActiveTab] = useState<TabFilter>('all');
-    const [selectedCase, setSelectedCase] = useState<ComplianceCase | null>(null);
+  const [stats, setStats] = useState<FraudStats | null>(null);
+  const [flags, setFlags] = useState<FraudFlag[]>([]);
+  const [wallets, setWallets] = useState<BlockedWallet[]>([]);
+  const [ips, setIps] = useState<BlockedIp[]>([]);
+  const [rules, setRules] = useState<FraudRule[]>([]);
 
-    const tabs: { label: string; key: TabFilter }[] = [
-        { label: 'All Cases', key: 'all' },
-        { label: 'Pending', key: 'pending' },
-        { label: 'Under Review', key: 'under_review' },
-        { label: 'High Risk', key: 'high' },
-        { label: 'Escalated', key: 'escalated' },
-    ];
+  const [walletToBlock, setWalletToBlock] = useState('');
+  const [ipToBlock, setIpToBlock] = useState('');
+  const [reason, setReason] = useState('manual_review');
 
-    const filtered = cases.filter((c) => {
-        const matchSearch =
-            !search ||
-            c.id.toLowerCase().includes(search.toLowerCase()) ||
-            c.merchant.toLowerCase().includes(search.toLowerCase()) ||
-            c.customer.toLowerCase().includes(search.toLowerCase());
-        const matchTab =
-            activeTab === 'all' ||
-            c.status === activeTab ||
-            c.riskLevel === activeTab;
-        return matchSearch && matchTab;
-    });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    return (
-        <div className="space-y-6 max-w-screen-2xl">
-            {/* Summary stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {summaryStats.map((s) => (
-                    <div key={s.label} className="glass-card rounded-xl p-4 flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center`}>
-                            <s.icon size={18} className={s.color} />
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-500">{s.label}</p>
-                            <p className="text-2xl font-bold text-slate-100 mt-0.5">{s.value}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
+  async function load() {
+    setError(null);
+    try {
+      const [statsData, flagsData, walletsData, ipsData, rulesData] = await Promise.all([
+        apiRequest<FraudStats>('/admin/fraud/stats'),
+        apiRequest<FraudFlag[]>('/admin/fraud/flags?resolved=false&limit=100'),
+        apiRequest<BlockedWallet[]>('/admin/fraud/blocked-wallets'),
+        apiRequest<BlockedIp[]>('/admin/fraud/blocked-ips'),
+        apiRequest<FraudRule[]>('/admin/fraud/rules'),
+      ]);
+      setStats(statsData);
+      setFlags(flagsData);
+      setWallets(walletsData);
+      setIps(ipsData);
+      setRules(rulesData);
+    } catch (e) {
+      setError(e instanceof ApiError ? `Failed to load compliance data (${e.status})` : 'Failed to load compliance data');
+    }
+  }
 
-            {/* Main panel */}
-            <div className="glass-card rounded-xl">
-                {/* Toolbar */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-5 border-b border-[#1e3a5f]/40">
-                    <div className="flex items-center gap-2 flex-wrap">
-                        {tabs.map((tab) => (
-                            <button
-                                key={tab.key}
-                                onClick={() => setActiveTab(tab.key)}
-                                className={clsx(
-                                    'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
-                                    activeTab === tab.key
-                                        ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30'
-                                        : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
-                                )}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                            <input
-                                type="text"
-                                placeholder="Search cases..."
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                className="input-field pl-8 pr-3 py-1.5 text-xs w-48"
-                            />
-                        </div>
-                        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 text-xs transition-colors">
-                            <Filter size={12} /> Filter <ChevronDown size={11} />
-                        </button>
-                        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 text-xs transition-colors">
-                            <Download size={12} /> Export
-                        </button>
-                    </div>
-                </div>
+  useEffect(() => {
+    load();
+  }, []);
 
-                {/* Table */}
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="text-xs text-slate-500 border-b border-[#1e3a5f]/30">
-                                <th className="text-left px-5 py-3 font-medium">Case ID</th>
-                                <th className="text-left px-4 py-3 font-medium">Type</th>
-                                <th className="text-left px-4 py-3 font-medium">Merchant</th>
-                                <th className="text-left px-4 py-3 font-medium">Customer</th>
-                                <th className="text-left px-4 py-3 font-medium">Amount</th>
-                                <th className="text-left px-4 py-3 font-medium">Risk</th>
-                                <th className="text-left px-4 py-3 font-medium">Status</th>
-                                <th className="text-left px-4 py-3 font-medium">Flag</th>
-                                <th className="text-left px-4 py-3 font-medium">Assignee</th>
-                                <th className="text-left px-4 py-3 font-medium">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filtered.map((c) => {
-                                const sc = statusConfig[c.status];
-                                return (
-                                    <tr key={c.id} className="table-row-hover border-b border-[#1e3a5f]/20 last:border-0">
-                                        <td className="px-5 py-3 font-mono text-xs text-violet-400 font-medium">{c.id}</td>
-                                        <td className="px-4 py-3 text-xs text-slate-300">{c.type}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
-                                                <Building2 size={12} className="text-slate-500 shrink-0" />
-                                                <span className="text-xs text-slate-300">{c.merchant}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
-                                                <User size={12} className="text-slate-500 shrink-0" />
-                                                <span className="text-xs text-slate-400">{c.customer}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-xs font-semibold text-slate-200">{c.amount}</td>
-                                        <td className="px-4 py-3">
-                                            <span className={clsx('text-[10px] font-bold px-1.5 py-0.5 rounded uppercase', riskConfig[c.riskLevel])}>
-                                                {c.riskLevel}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className={clsx('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium', sc.classes)}>
-                                                {sc.icon} {sc.label}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {c.flag && (
-                                                <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                                                    <Flag size={9} /> {c.flag}
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-slate-400">{c.assignee}</td>
-                                        <td className="px-4 py-3">
-                                            <button
-                                                onClick={() => setSelectedCase(c)}
-                                                className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
-                                            >
-                                                Review →
-                                            </button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+  async function resolveFlag(id: string, resolutionType: 'safe_false_positive' | 'confirmed_fraud' | 'other') {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiRequest(`/admin/fraud/flags/${id}/resolve`, {
+        method: 'POST',
+        body: { resolution_type: resolutionType, resolution_notes: 'Resolved in admin console' },
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? `Failed to resolve flag (${e.status})` : 'Failed to resolve flag');
+    }
+    setBusy(false);
+  }
 
-            {/* Detail modal */}
-            {selectedCase && (
-                <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-                    onClick={() => setSelectedCase(null)}
-                >
-                    <div
-                        className="glass-card rounded-2xl w-full max-w-lg mx-4 p-6 border border-[#1e3a5f]/60 shadow-2xl"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="flex items-start justify-between mb-5">
-                            <div>
-                                <p className="text-xs text-slate-500 font-mono">{selectedCase.id}</p>
-                                <h2 className="text-lg font-bold text-slate-100 mt-1">{selectedCase.type}</h2>
-                            </div>
-                            <button onClick={() => setSelectedCase(null)} className="text-slate-500 hover:text-slate-200 transition-colors">
-                                <XCircle size={20} />
-                            </button>
-                        </div>
+  async function blockWallet() {
+    if (!walletToBlock.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiRequest('/admin/fraud/blocked-wallets', {
+        method: 'POST',
+        body: { wallet_address: walletToBlock.trim(), reason },
+      });
+      setWalletToBlock('');
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? `Failed to block wallet (${e.status})` : 'Failed to block wallet');
+    }
+    setBusy(false);
+  }
 
-                        <div className="space-y-3 text-sm mb-6">
-                            {[
-                                { label: 'Merchant', value: selectedCase.merchant, icon: <Building2 size={13} className="text-slate-500" /> },
-                                { label: 'Customer', value: selectedCase.customer, icon: <User size={13} className="text-slate-500" /> },
-                                { label: 'Amount', value: selectedCase.amount, icon: null },
-                                { label: 'Risk Level', value: selectedCase.riskLevel.toUpperCase(), icon: <AlertTriangle size={13} className="text-slate-500" /> },
-                                { label: 'Submitted', value: selectedCase.submittedAt, icon: <Calendar size={13} className="text-slate-500" /> },
-                                { label: 'Flag', value: selectedCase.flag || '—', icon: <Flag size={13} className="text-slate-500" /> },
-                                { label: 'Assignee', value: selectedCase.assignee, icon: null },
-                            ].map((row) => (
-                                <div key={row.label} className="flex items-center gap-3 py-2 border-b border-[#1e3a5f]/30 last:border-0">
-                                    <span className="text-slate-500 w-24 shrink-0">{row.label}</span>
-                                    <div className="flex items-center gap-1.5 text-slate-200 font-medium">{row.icon}{row.value}</div>
-                                </div>
-                            ))}
-                        </div>
+  async function blockIp() {
+    if (!ipToBlock.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiRequest('/admin/fraud/blocked-ips', {
+        method: 'POST',
+        body: { ip_address: ipToBlock.trim(), reason },
+      });
+      setIpToBlock('');
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? `Failed to block IP (${e.status})` : 'Failed to block IP');
+    }
+    setBusy(false);
+  }
 
-                        <div className="flex gap-3">
-                            <button className="flex-1 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 font-semibold text-sm border border-emerald-500/30 transition-colors">
-                                Approve
-                            </button>
-                            <button className="flex-1 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 font-semibold text-sm border border-amber-500/30 transition-colors">
-                                Escalate
-                            </button>
-                            <button className="flex-1 py-2.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-400 font-semibold text-sm border border-red-500/30 transition-colors">
-                                Reject
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+  async function unblockWallet(id: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiRequest(`/admin/fraud/wallets/${id}/unblock`, { method: 'DELETE' });
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? `Failed to unblock wallet (${e.status})` : 'Failed to unblock wallet');
+    }
+    setBusy(false);
+  }
+
+  async function unblockIp(ip: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiRequest(`/admin/fraud/blocked-ips/${encodeURIComponent(ip)}`, { method: 'DELETE' });
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? `Failed to unblock IP (${e.status})` : 'Failed to unblock IP');
+    }
+    setBusy(false);
+  }
+
+  async function toggleRule(rule: FraudRule) {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiRequest(`/admin/fraud/rules/${rule.id}`, {
+        method: 'PATCH',
+        body: { is_enabled: !rule.is_enabled },
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? `Failed to update rule (${e.status})` : 'Failed to update rule');
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="space-y-4 max-w-6xl">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold">Fraud And Compliance Operations</h2>
+        <button className="px-2 py-1 rounded bg-violet-600 text-white text-xs" onClick={load}>Refresh</button>
+      </div>
+
+      {error && <p className="text-sm text-red-400">{error}</p>}
+
+      {stats && (
+        <div className="grid md:grid-cols-3 xl:grid-cols-6 gap-3">
+          <MetricCard label="Flags Today" value={stats.total_flags_today} />
+          <MetricCard label="Flags (7d)" value={stats.total_flags_this_week} />
+          <MetricCard label="Unresolved" value={stats.unresolved_flags} />
+          <MetricCard label="Blocked Wallets" value={stats.blocked_wallets} />
+          <MetricCard label="Blocked IPs" value={stats.blocked_ips} />
+          <MetricCard label="High Risk (24h)" value={stats.high_risk_payments_today} />
         </div>
-    );
+      )}
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="glass-card rounded-xl p-4 space-y-3">
+          <h3 className="text-sm font-semibold">Block Wallet Or IP</h3>
+          <input
+            className="input-field w-full px-3 py-2"
+            placeholder="Wallet address"
+            value={walletToBlock}
+            onChange={(e) => setWalletToBlock(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <input
+              className="input-field flex-1 px-3 py-2"
+              placeholder="IP address"
+              value={ipToBlock}
+              onChange={(e) => setIpToBlock(e.target.value)}
+            />
+            <input
+              className="input-field w-44 px-3 py-2"
+              placeholder="Reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2">
+            <button className="px-3 py-2 rounded bg-rose-700 text-white text-xs" onClick={blockWallet} disabled={busy}>Block Wallet</button>
+            <button className="px-3 py-2 rounded bg-rose-700 text-white text-xs" onClick={blockIp} disabled={busy}>Block IP</button>
+          </div>
+        </div>
+
+        <div className="glass-card rounded-xl p-4">
+          <h3 className="text-sm font-semibold mb-3">Fraud Rules</h3>
+          <div className="space-y-2">
+            {rules.map((rule) => (
+              <div key={rule.id} className="border rounded-lg px-3 py-2 flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
+                <div>
+                  <p className="text-sm font-medium">{rule.name}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    Severity: {rule.severity} | Score: {rule.score_contribution}
+                  </p>
+                </div>
+                <button
+                  className={`px-2 py-1 text-xs rounded ${rule.is_enabled ? 'bg-emerald-700' : 'bg-zinc-700'} text-white`}
+                  disabled={busy}
+                  onClick={() => toggleRule(rule)}
+                >
+                  {rule.is_enabled ? 'Enabled' : 'Disabled'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-card rounded-xl p-4">
+        <h3 className="text-sm font-semibold mb-3">Unresolved Fraud Flags</h3>
+        <div className="overflow-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ color: 'var(--text-muted)' }}>
+                <th className="text-left py-2">Flag</th>
+                <th className="text-left py-2">Rule</th>
+                <th className="text-left py-2">Severity</th>
+                <th className="text-left py-2">Score</th>
+                <th className="text-left py-2">Wallet/IP</th>
+                <th className="text-left py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {flags.map((flag) => (
+                <tr key={flag.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
+                  <td className="py-2 font-mono text-xs">{flag.id.slice(0, 8)}...</td>
+                  <td className="py-2">{flag.rule_name}</td>
+                  <td className="py-2">{flag.severity}</td>
+                  <td className="py-2">{flag.fraud_score}</td>
+                  <td className="py-2">{flag.wallet_address ?? flag.ip_address_text ?? '-'}</td>
+                  <td className="py-2 space-x-2">
+                    <button className="px-2 py-1 text-xs rounded bg-emerald-700 text-white" disabled={busy} onClick={() => resolveFlag(flag.id, 'safe_false_positive')}>False Positive</button>
+                    <button className="px-2 py-1 text-xs rounded bg-rose-700 text-white" disabled={busy} onClick={() => resolveFlag(flag.id, 'confirmed_fraud')}>Confirm Fraud</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="glass-card rounded-xl p-4">
+          <h3 className="text-sm font-semibold mb-3">Blocked Wallets</h3>
+          <div className="space-y-2">
+            {wallets.map((w) => (
+              <div key={w.id} className="border rounded-lg px-3 py-2 flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
+                <div>
+                  <p className="text-xs font-mono">{w.wallet_address}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{w.reason}</p>
+                </div>
+                <button className="px-2 py-1 text-xs rounded bg-zinc-700 text-white" disabled={busy} onClick={() => unblockWallet(w.id)}>Unblock</button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="glass-card rounded-xl p-4">
+          <h3 className="text-sm font-semibold mb-3">Blocked IPs</h3>
+          <div className="space-y-2">
+            {ips.map((ip) => (
+              <div key={ip.id} className="border rounded-lg px-3 py-2 flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
+                <div>
+                  <p className="text-xs font-mono">{ip.ip_address_text}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{ip.reason}</p>
+                </div>
+                <button className="px-2 py-1 text-xs rounded bg-zinc-700 text-white" disabled={busy} onClick={() => unblockIp(ip.ip_address_text)}>Unblock</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="glass-card rounded-xl p-3">
+      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</p>
+      <p className="text-2xl font-bold mt-1">{value}</p>
+    </div>
+  );
 }

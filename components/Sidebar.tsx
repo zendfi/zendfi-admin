@@ -17,16 +17,25 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useState } from 'react';
+import type { CSSProperties, ComponentType } from 'react';
 import Image from 'next/image';
 
-const navigation = [
+type NavItem = {
+    name: string;
+    href: string;
+    icon: ComponentType<{ size?: number; className?: string; style?: CSSProperties }>;
+    badge?: string;
+    badgeColor?: string;
+};
+
+const navigation: NavItem[] = [
     { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Transactions', href: '/dashboard/transactions', icon: ArrowLeftRight },
     { name: 'Payments', href: '/dashboard/payments', icon: Layers },
     { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
-    { name: 'Compliance Review', href: '/dashboard/compliance', icon: ShieldCheck, badge: '12', badgeColor: 'bg-amber-500' },
-    { name: 'Support Center', href: '/dashboard/support', icon: HeadphonesIcon, badge: '3', badgeColor: 'bg-violet-500' },
-    { name: 'Team & Permissions', href: '/dashboard/team', icon: Users },
+    { name: 'Compliance Review', href: '/dashboard/compliance', icon: ShieldCheck },
+    { name: 'Support Center', href: '/dashboard/support', icon: HeadphonesIcon },
+    { name: 'Team Admin', href: '/dashboard/team', icon: Users },
     { name: 'Webhooks', href: '/dashboard/webhooks', icon: Webhook },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
