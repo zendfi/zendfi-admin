@@ -1,6 +1,6 @@
 import { clearAuthSession, getAuthToken, getCsrfToken, setCsrfToken } from './auth';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? '';
+const CONFIGURED_API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? '';
 
 export class ApiError extends Error {
   status: number;
@@ -19,11 +19,41 @@ type RequestOptions = {
   auth?: boolean;
 };
 
+function resolveApiBase(): string {
+  if (CONFIGURED_API_BASE) return CONFIGURED_API_BASE;
+
+  if (typeof window === 'undefined') return '';
+
+  const host = window.location.hostname.toLowerCase();
+
+  // Production fallback for admin/dashboard hosts when env var is missing.
+  if (
+    host === 'zendfi-admin.vercel.app' ||
+    host.endsWith('.zendfi.tech')
+  ) {
+    return 'https://api.zendfi.tech';
+  }
+
+  // Local dev convenience fallback.
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return 'http://localhost:8080';
+  }
+
+  return '';
+}
+
 function isMutating(method: string): boolean {
   return ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method);
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const apiBase = resolveApiBase();
+  if (!apiBase) {
+    throw new ApiError('API base URL is not configured', 500, {
+      hint: 'Set NEXT_PUBLIC_API_BASE_URL in deployment environment variables.',
+    });
+  }
+
   const method = options.method ?? 'GET';
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -39,7 +69,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     if (csrf) headers['X-CSRF-Token'] = csrf;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${apiBase}${path}`, {
     method,
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
