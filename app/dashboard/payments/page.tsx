@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ApiError, apiRequest } from '@/lib/api';
+import { ActionButton, InlineMessage, Panel, ShellTitle, StatusPill } from '@/components/ops-ui';
 
 type SetupFeePayment = {
   id: string;
@@ -126,18 +127,18 @@ export default function PaymentsPage() {
   }
 
   return (
-    <div className="space-y-4 max-w-6xl">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Payments And Settlement Operations</h2>
-        <button className="px-2 py-1 rounded bg-violet-600 text-white text-xs" onClick={loadSetupFees}>Refresh</button>
-      </div>
+    <div className="space-y-4 max-w-7xl">
+      <ShellTitle
+        title="Payments And Settlement Operations"
+        subtitle="Merchant enablement, setup-fee governance, and settlement audit lane"
+        action={<ActionButton variant="primary" onClick={loadSetupFees}>Refresh</ActionButton>}
+      />
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      {success && <p className="text-sm text-emerald-400">{success}</p>}
+      {error && <InlineMessage kind="error">{error}</InlineMessage>}
+      {success && <InlineMessage kind="success">{success}</InlineMessage>}
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="glass-card rounded-xl p-4 space-y-3">
-          <h3 className="text-sm font-semibold">Merchant Lookup</h3>
+        <Panel title="Merchant Lookup" subtitle="Find merchant and execute access-control actions">
           <div className="flex gap-2">
             <input
               className="input-field flex-1 px-3 py-2"
@@ -145,7 +146,7 @@ export default function PaymentsPage() {
               value={lookupEmail}
               onChange={(e) => setLookupEmail(e.target.value)}
             />
-            <button className="px-3 py-2 rounded bg-cyan-700 text-white text-xs" onClick={findMerchant} disabled={busy}>Find</button>
+            <ActionButton onClick={findMerchant} disabled={busy}>Find</ActionButton>
           </div>
 
           {merchant && (
@@ -153,7 +154,7 @@ export default function PaymentsPage() {
               <p className="text-sm font-medium">{merchant.name}</p>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{merchant.email}</p>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                Live access: {merchant.live_access_enabled ? 'enabled' : 'disabled'}
+                Live access: <StatusPill tone={merchant.live_access_enabled ? 'ok' : 'warn'}>{merchant.live_access_enabled ? 'enabled' : 'disabled'}</StatusPill>
               </p>
               <input
                 className="input-field w-full px-3 py-2"
@@ -162,17 +163,16 @@ export default function PaymentsPage() {
                 onChange={(e) => setGrantReason(e.target.value)}
               />
               <div className="flex gap-2">
-                <button className="px-2 py-1 rounded bg-emerald-700 text-white text-xs" onClick={grantLiveAccess} disabled={busy}>Enable Live Access</button>
-                <button className="px-2 py-1 rounded bg-zinc-700 text-white text-xs" onClick={disableLiveAccess} disabled={busy}>Disable Live Access</button>
+                <ActionButton variant="primary" onClick={grantLiveAccess} disabled={busy}>Enable Live Access</ActionButton>
+                <ActionButton variant="danger" onClick={disableLiveAccess} disabled={busy}>Disable Live Access</ActionButton>
               </div>
             </div>
           )}
-        </div>
+        </Panel>
 
-        <div className="glass-card rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Settlement History</h3>
+        <Panel title="Settlement History" subtitle="Recent settlements for selected merchant">
           <div className="overflow-auto max-h-72">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm ops-table">
               <thead>
                 <tr style={{ color: 'var(--text-muted)' }}>
                   <th className="text-left py-2">Settlement</th>
@@ -195,12 +195,11 @@ export default function PaymentsPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </Panel>
       </div>
 
-      <div className="glass-card rounded-xl p-4">
+      <Panel title="Setup Fee Payments" subtitle="Track lifecycle of setup fee collection and admin grants">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold">Setup Fee Payments</h3>
           <div className="flex items-center gap-2">
             <input
               className="input-field px-2 py-1 text-xs"
@@ -208,12 +207,12 @@ export default function PaymentsPage() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             />
-            <button className="px-2 py-1 rounded bg-violet-600 text-white text-xs" onClick={loadSetupFees}>Apply</button>
+            <ActionButton variant="primary" onClick={loadSetupFees}>Apply</ActionButton>
           </div>
         </div>
 
         <div className="overflow-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm ops-table">
             <thead>
               <tr style={{ color: 'var(--text-muted)' }}>
                 <th className="text-left py-2">Payment</th>
@@ -238,7 +237,7 @@ export default function PaymentsPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }

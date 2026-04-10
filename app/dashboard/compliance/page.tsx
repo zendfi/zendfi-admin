@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ApiError, apiRequest } from '@/lib/api';
+import { ActionButton, InlineMessage, MetricTile, Panel, ShellTitle, StatusPill } from '@/components/ops-ui';
 
 type FraudStats = {
   total_flags_today: number;
@@ -173,28 +174,28 @@ export default function CompliancePage() {
   }
 
   return (
-    <div className="space-y-4 max-w-6xl">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Fraud And Compliance Operations</h2>
-        <button className="px-2 py-1 rounded bg-violet-600 text-white text-xs" onClick={load}>Refresh</button>
-      </div>
+    <div className="space-y-4 max-w-7xl">
+      <ShellTitle
+        title="Fraud And Compliance Ops"
+        subtitle="Resolve risk signals, tune rule thresholds, and manage active blocklists"
+        action={<ActionButton variant="primary" onClick={load}>Refresh</ActionButton>}
+      />
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <InlineMessage kind="error">{error}</InlineMessage>}
 
       {stats && (
         <div className="grid md:grid-cols-3 xl:grid-cols-6 gap-3">
-          <MetricCard label="Flags Today" value={stats.total_flags_today} />
-          <MetricCard label="Flags (7d)" value={stats.total_flags_this_week} />
-          <MetricCard label="Unresolved" value={stats.unresolved_flags} />
-          <MetricCard label="Blocked Wallets" value={stats.blocked_wallets} />
-          <MetricCard label="Blocked IPs" value={stats.blocked_ips} />
-          <MetricCard label="High Risk (24h)" value={stats.high_risk_payments_today} />
+          <MetricTile label="Flags Today" value={stats.total_flags_today} tone="warn" />
+          <MetricTile label="Flags (7d)" value={stats.total_flags_this_week} tone="warn" />
+          <MetricTile label="Unresolved" value={stats.unresolved_flags} tone="danger" />
+          <MetricTile label="Blocked Wallets" value={stats.blocked_wallets} tone="info" />
+          <MetricTile label="Blocked IPs" value={stats.blocked_ips} tone="info" />
+          <MetricTile label="High Risk (24h)" value={stats.high_risk_payments_today} tone="danger" />
         </div>
       )}
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="glass-card rounded-xl p-4 space-y-3">
-          <h3 className="text-sm font-semibold">Block Wallet Or IP</h3>
+        <Panel title="Block Wallet Or IP" subtitle="Apply immediate containment actions for high-confidence threats" className="space-y-3">
           <input
             className="input-field w-full px-3 py-2"
             placeholder="Wallet address"
@@ -216,13 +217,12 @@ export default function CompliancePage() {
             />
           </div>
           <div className="flex gap-2">
-            <button className="px-3 py-2 rounded bg-rose-700 text-white text-xs" onClick={blockWallet} disabled={busy}>Block Wallet</button>
-            <button className="px-3 py-2 rounded bg-rose-700 text-white text-xs" onClick={blockIp} disabled={busy}>Block IP</button>
+            <ActionButton variant="danger" onClick={blockWallet} disabled={busy}>Block Wallet</ActionButton>
+            <ActionButton variant="danger" onClick={blockIp} disabled={busy}>Block IP</ActionButton>
           </div>
-        </div>
+        </Panel>
 
-        <div className="glass-card rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Fraud Rules</h3>
+        <Panel title="Fraud Rules" subtitle="Enable or disable policy rules without redeploying backend logic">
           <div className="space-y-2">
             {rules.map((rule) => (
               <div key={rule.id} className="border rounded-lg px-3 py-2 flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
@@ -233,7 +233,7 @@ export default function CompliancePage() {
                   </p>
                 </div>
                 <button
-                  className={`px-2 py-1 text-xs rounded ${rule.is_enabled ? 'bg-emerald-700' : 'bg-zinc-700'} text-white`}
+                  className={`px-2 py-1 text-xs rounded ${rule.is_enabled ? 'btn-primary' : 'btn-secondary'}`}
                   disabled={busy}
                   onClick={() => toggleRule(rule)}
                 >
@@ -242,13 +242,12 @@ export default function CompliancePage() {
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
       </div>
 
-      <div className="glass-card rounded-xl p-4">
-        <h3 className="text-sm font-semibold mb-3">Unresolved Fraud Flags</h3>
+      <Panel title="Unresolved Fraud Flags" subtitle="Primary triage queue for operator review and adjudication">
         <div className="overflow-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm ops-table">
             <thead>
               <tr style={{ color: 'var(--text-muted)' }}>
                 <th className="text-left py-2">Flag</th>
@@ -264,23 +263,22 @@ export default function CompliancePage() {
                 <tr key={flag.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
                   <td className="py-2 font-mono text-xs">{flag.id.slice(0, 8)}...</td>
                   <td className="py-2">{flag.rule_name}</td>
-                  <td className="py-2">{flag.severity}</td>
+                  <td className="py-2"><StatusPill tone={flag.severity === 'critical' || flag.severity === 'high' ? 'danger' : 'warn'}>{flag.severity}</StatusPill></td>
                   <td className="py-2">{flag.fraud_score}</td>
                   <td className="py-2">{flag.wallet_address ?? flag.ip_address_text ?? '-'}</td>
                   <td className="py-2 space-x-2">
-                    <button className="px-2 py-1 text-xs rounded bg-emerald-700 text-white" disabled={busy} onClick={() => resolveFlag(flag.id, 'safe_false_positive')}>False Positive</button>
-                    <button className="px-2 py-1 text-xs rounded bg-rose-700 text-white" disabled={busy} onClick={() => resolveFlag(flag.id, 'confirmed_fraud')}>Confirm Fraud</button>
+                    <ActionButton className="inline-flex" disabled={busy} onClick={() => resolveFlag(flag.id, 'safe_false_positive')}>False Positive</ActionButton>
+                    <ActionButton variant="danger" className="inline-flex" disabled={busy} onClick={() => resolveFlag(flag.id, 'confirmed_fraud')}>Confirm Fraud</ActionButton>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </Panel>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="glass-card rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Blocked Wallets</h3>
+        <Panel title="Blocked Wallets">
           <div className="space-y-2">
             {wallets.map((w) => (
               <div key={w.id} className="border rounded-lg px-3 py-2 flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
@@ -288,14 +286,13 @@ export default function CompliancePage() {
                   <p className="text-xs font-mono">{w.wallet_address}</p>
                   <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{w.reason}</p>
                 </div>
-                <button className="px-2 py-1 text-xs rounded bg-zinc-700 text-white" disabled={busy} onClick={() => unblockWallet(w.id)}>Unblock</button>
+                <ActionButton className="inline-flex" disabled={busy} onClick={() => unblockWallet(w.id)}>Unblock</ActionButton>
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
 
-        <div className="glass-card rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Blocked IPs</h3>
+        <Panel title="Blocked IPs">
           <div className="space-y-2">
             {ips.map((ip) => (
               <div key={ip.id} className="border rounded-lg px-3 py-2 flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
@@ -303,21 +300,12 @@ export default function CompliancePage() {
                   <p className="text-xs font-mono">{ip.ip_address_text}</p>
                   <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{ip.reason}</p>
                 </div>
-                <button className="px-2 py-1 text-xs rounded bg-zinc-700 text-white" disabled={busy} onClick={() => unblockIp(ip.ip_address_text)}>Unblock</button>
+                <ActionButton className="inline-flex" disabled={busy} onClick={() => unblockIp(ip.ip_address_text)}>Unblock</ActionButton>
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
       </div>
-    </div>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="glass-card rounded-xl p-3">
-      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</p>
-      <p className="text-2xl font-bold mt-1">{value}</p>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiRequest } from '@/lib/api';
+import { ActionButton, InlineMessage, Panel, ShellTitle, StatusPill } from '@/components/ops-ui';
 
 type FlaggedPayment = {
   id: string;
@@ -60,16 +61,18 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="space-y-4 max-w-6xl">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Flagged Payments Recovery</h2>
-        <button className="px-2 py-1 rounded bg-violet-600 text-white text-xs" onClick={load}>Refresh</button>
-      </div>
+    <div className="space-y-4 max-w-7xl">
+      <ShellTitle
+        title="Flagged Payment Recovery"
+        subtitle="Manual intervention lane for verification, onramp settlement retry, and job redrive"
+        action={<ActionButton variant="primary" onClick={load}>Refresh Queue</ActionButton>}
+      />
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <InlineMessage kind="error">{error}</InlineMessage>}
 
-      <div className="glass-card rounded-xl p-4 overflow-auto">
-        <table className="w-full text-sm">
+      <Panel title="Recovery Queue" subtitle="Prioritize items by reason and payment mode">
+        <div className="overflow-auto">
+        <table className="w-full text-sm ops-table">
           <thead>
             <tr style={{ color: 'var(--text-muted)' }}>
               <th className="text-left py-2">Payment</th>
@@ -86,36 +89,39 @@ export default function TransactionsPage() {
                 <td className="py-2 font-mono text-xs">{r.id.slice(0, 8)}...</td>
                 <td className="py-2">{r.merchant_name ?? r.merchant_email ?? '-'}</td>
                 <td className="py-2">${r.amount_usd.toFixed(2)}</td>
-                <td className="py-2">{r.status ?? '-'}</td>
-                <td className="py-2">{r.flag_reason ?? '-'}</td>
+                <td className="py-2"><StatusPill tone={r.status === 'failed' ? 'danger' : 'warn'}>{r.status ?? '-'}</StatusPill></td>
+                <td className="py-2 max-w-72">{r.flag_reason ?? '-'}</td>
                 <td className="py-2 space-x-2">
-                  <button
-                    className="px-2 py-1 text-xs rounded bg-cyan-700 text-white"
+                  <ActionButton
+                    className="inline-flex"
                     disabled={loadingId === r.id}
                     onClick={() => action(r.id, 'verify')}
                   >
                     Retry Verify
-                  </button>
-                  <button
-                    className="px-2 py-1 text-xs rounded bg-emerald-700 text-white"
+                  </ActionButton>
+                  <ActionButton
+                    variant="primary"
+                    className="inline-flex"
                     disabled={loadingId === r.id || !r.is_onramp}
                     onClick={() => action(r.id, 'settle')}
                   >
                     Retry Settle
-                  </button>
-                  <button
-                    className="px-2 py-1 text-xs rounded bg-amber-700 text-white"
+                  </ActionButton>
+                  <ActionButton
+                    variant="danger"
+                    className="inline-flex"
                     disabled={loadingId === r.id}
                     onClick={() => action(r.id, 'redrive')}
                   >
                     Redrive Jobs
-                  </button>
+                  </ActionButton>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+        </div>
+      </Panel>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest, ApiError } from '@/lib/api';
+import { ActionButton, InlineMessage, MetricTile, Panel, ShellTitle, StatusPill } from '@/components/ops-ui';
 
 type AdminUser = {
   id: string;
@@ -79,27 +80,20 @@ export default function TeamPage() {
   }
 
   return (
-    <div className="space-y-5 max-w-5xl">
-      <div className="grid grid-cols-3 gap-3">
-        <div className="glass-card rounded-xl p-4">
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Super Admin</p>
-          <p className="text-2xl font-bold">{roleCounts.super_admin}</p>
-        </div>
-        <div className="glass-card rounded-xl p-4">
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Admin</p>
-          <p className="text-2xl font-bold">{roleCounts.admin}</p>
-        </div>
-        <div className="glass-card rounded-xl p-4">
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Support</p>
-          <p className="text-2xl font-bold">{roleCounts.support}</p>
-        </div>
+    <div className="space-y-5 max-w-6xl">
+      <ShellTitle title="Operator Access Control" subtitle="Provision admin users and inspect role composition" />
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <MetricTile label="Super Admin" value={roleCounts.super_admin} tone="danger" />
+        <MetricTile label="Admin" value={roleCounts.admin} tone="warn" />
+        <MetricTile label="Support" value={roleCounts.support} tone="info" />
       </div>
 
-      {error && <div className="text-sm text-red-400">{error}</div>}
-      {success && <div className="text-sm text-emerald-400">{success}</div>}
+      {error && <InlineMessage kind="error">{error}</InlineMessage>}
+      {success && <InlineMessage kind="success">{success}</InlineMessage>}
 
-      <form onSubmit={onCreate} className="glass-card rounded-xl p-5 space-y-3">
-        <h2 className="text-sm font-semibold">Create Admin User</h2>
+      <Panel title="Create Operator" subtitle="Use least privilege. Super-admin should remain tightly controlled.">
+      <form onSubmit={onCreate} className="space-y-3">
         <div className="grid md:grid-cols-2 gap-3">
           <input
             className="input-field px-3 py-2"
@@ -134,17 +128,18 @@ export default function TeamPage() {
             <option value="super_admin">super_admin</option>
           </select>
         </div>
-        <button className="px-3 py-2 rounded-lg bg-violet-600 text-white text-sm" disabled={saving}>
+        <ActionButton variant="primary" disabled={saving}>
           {saving ? 'Creating...' : 'Create user'}
-        </button>
+        </ActionButton>
       </form>
+      </Panel>
 
-      <div className="glass-card rounded-xl p-5 overflow-auto">
-        <h2 className="text-sm font-semibold mb-3">Admin Users</h2>
+      <Panel title="Current Operators" subtitle="Review role distribution and account activation state">
         {loading ? (
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading users...</p>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-auto">
+          <table className="w-full text-sm ops-table">
             <thead>
               <tr style={{ color: 'var(--text-muted)' }}>
                 <th className="text-left py-2">Name</th>
@@ -159,15 +154,20 @@ export default function TeamPage() {
                 <tr key={u.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
                   <td className="py-2">{u.full_name}</td>
                   <td className="py-2">{u.email}</td>
-                  <td className="py-2">{u.role}</td>
-                  <td className="py-2">{u.is_active ? 'yes' : 'no'}</td>
+                  <td className="py-2">
+                    <StatusPill tone={u.role === 'super_admin' ? 'danger' : u.role === 'admin' ? 'warn' : 'info'}>{u.role}</StatusPill>
+                  </td>
+                  <td className="py-2">
+                    <StatusPill tone={u.is_active ? 'ok' : 'danger'}>{u.is_active ? 'active' : 'inactive'}</StatusPill>
+                  </td>
                   <td className="py-2">{new Date(u.created_at).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         )}
-      </div>
+      </Panel>
     </div>
   );
 }

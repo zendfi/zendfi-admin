@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest, ApiError } from '@/lib/api';
+import { ActionButton, InlineMessage, Panel, ShellTitle, StatusPill } from '@/components/ops-ui';
 
 type SettingsTab = 'general' | 'notifications' | 'security' | 'events' | 'api_keys';
 
@@ -195,15 +196,17 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4 max-w-6xl">
+      <ShellTitle title="Control Plane Settings" subtitle="Global configuration for operations, security policy, and admin key hygiene" />
+
       <div className="flex items-center gap-2 flex-wrap">
         {tabs.map((t) => (
           <button
             key={t.key}
-            className={`px-3 py-1.5 rounded-lg text-xs border ${tab === t.key ? 'bg-violet-500/20 text-violet-300 border-violet-400/40' : ''}`}
+            className={`px-3 py-1.5 rounded-lg text-xs border ${tab === t.key ? 'nav-active' : 'nav-idle'}`}
             style={{
-              borderColor: tab === t.key ? '' : 'var(--border)',
-              color: tab === t.key ? '' : 'var(--text-secondary)',
+              borderColor: 'var(--border)',
+              color: tab === t.key ? 'var(--text-primary)' : 'var(--text-secondary)',
             }}
             onClick={() => setTab(t.key)}
           >
@@ -212,25 +215,23 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {error && <div className="text-sm text-red-400">{error}</div>}
-      {success && <div className="text-sm text-emerald-400">{success}</div>}
+      {error && <InlineMessage kind="error">{error}</InlineMessage>}
+      {success && <InlineMessage kind="success">{success}</InlineMessage>}
 
       {tab === 'general' && general && (
-        <div className="glass-card rounded-xl p-5 space-y-3">
-          <h2 className="text-sm font-semibold">General</h2>
+        <Panel title="General" subtitle="Business identity and system mode controls" className="space-y-3">
           <input className="input-field w-full px-3 py-2" value={general.business_name} onChange={(e) => setGeneral({ ...general, business_name: e.target.value })} placeholder="Business name" />
           <input className="input-field w-full px-3 py-2" value={general.support_email} onChange={(e) => setGeneral({ ...general, support_email: e.target.value })} placeholder="Support email" />
           <input className="input-field w-full px-3 py-2" value={general.website_url ?? ''} onChange={(e) => setGeneral({ ...general, website_url: e.target.value })} placeholder="Website URL" />
           <input className="input-field w-full px-3 py-2" value={general.timezone} onChange={(e) => setGeneral({ ...general, timezone: e.target.value })} placeholder="Timezone" />
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={general.maintenance_mode} onChange={(e) => setGeneral({ ...general, maintenance_mode: e.target.checked })} /> Maintenance mode</label>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={general.live_mode} onChange={(e) => setGeneral({ ...general, live_mode: e.target.checked })} /> Live mode</label>
-          <button className="px-3 py-2 rounded-lg bg-violet-600 text-white text-sm" disabled={saving} onClick={saveGeneral}>{saving ? 'Saving...' : 'Save general'}</button>
-        </div>
+          <ActionButton variant="primary" disabled={saving} onClick={saveGeneral}>{saving ? 'Saving...' : 'Save general'}</ActionButton>
+        </Panel>
       )}
 
       {tab === 'notifications' && notifications && (
-        <div className="glass-card rounded-xl p-5 space-y-3">
-          <h2 className="text-sm font-semibold">Notifications</h2>
+        <Panel title="Notifications" subtitle="Channel routing for core system alerts" className="space-y-3">
           {(Object.keys(notifications) as Array<keyof NotificationsSettings>).map((group) => (
             <div key={group} className="border rounded-lg p-3" style={{ borderColor: 'var(--border)' }}>
               <p className="text-sm mb-2" style={{ color: 'var(--text-primary)' }}>{group}</p>
@@ -248,13 +249,12 @@ export default function SettingsPage() {
               </div>
             </div>
           ))}
-          <button className="px-3 py-2 rounded-lg bg-violet-600 text-white text-sm" disabled={saving} onClick={saveNotifications}>{saving ? 'Saving...' : 'Save notifications'}</button>
-        </div>
+          <ActionButton variant="primary" disabled={saving} onClick={saveNotifications}>{saving ? 'Saving...' : 'Save notifications'}</ActionButton>
+        </Panel>
       )}
 
       {tab === 'security' && security && (
-        <div className="glass-card rounded-xl p-5 space-y-3">
-          <h2 className="text-sm font-semibold">Security Policy</h2>
+        <Panel title="Security Policy" subtitle="Session, credential, and network posture settings" className="space-y-3">
           <label className="text-sm">Session timeout (minutes)</label>
           <input type="number" className="input-field w-full px-3 py-2" value={security.session_timeout_minutes} onChange={(e) => setSecurity({ ...security, session_timeout_minutes: Number(e.target.value) })} />
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={security.require_2fa} onChange={(e) => setSecurity({ ...security, require_2fa: e.target.checked })} /> Require 2FA</label>
@@ -266,15 +266,14 @@ export default function SettingsPage() {
             value={security.allowed_ip_ranges.join(', ')}
             onChange={(e) => setSecurity({ ...security, allowed_ip_ranges: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })}
           />
-          <button className="px-3 py-2 rounded-lg bg-violet-600 text-white text-sm" disabled={saving} onClick={saveSecurity}>{saving ? 'Saving...' : 'Save security policy'}</button>
-        </div>
+          <ActionButton variant="primary" disabled={saving} onClick={saveSecurity}>{saving ? 'Saving...' : 'Save security policy'}</ActionButton>
+        </Panel>
       )}
 
       {tab === 'events' && (
-        <div className="glass-card rounded-xl p-5">
-          <h2 className="text-sm font-semibold mb-3">Security Events</h2>
+        <Panel title="Security Events" subtitle="Recent authenticated admin actions and outcome status">
           <div className="overflow-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm ops-table">
               <thead>
                 <tr style={{ color: 'var(--text-muted)' }}>
                   <th className="text-left py-2">Time</th>
@@ -290,19 +289,18 @@ export default function SettingsPage() {
                     <td className="py-2">{new Date(ev.created_at).toLocaleString()}</td>
                     <td className="py-2">{ev.action}</td>
                     <td className="py-2">{ev.admin_email ?? ev.admin_id}</td>
-                    <td className="py-2">{ev.status}</td>
+                    <td className="py-2"><StatusPill tone={ev.status === 'success' ? 'ok' : 'danger'}>{ev.status}</StatusPill></td>
                     <td className="py-2">{ev.ip_address ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
+        </Panel>
       )}
 
       {tab === 'api_keys' && (
-        <div className="glass-card rounded-xl p-5 space-y-3">
-          <h2 className="text-sm font-semibold">API Keys (Masked)</h2>
+        <Panel title="API Keys (Masked)" subtitle="Rotate compromised or stale keys; capture one-time output securely" className="space-y-3">
           {rotatedSecret && (
             <div className="rounded-lg p-3 text-sm border" style={{ borderColor: 'var(--border)', color: 'var(--text-primary)' }}>
               <p className="font-semibold text-amber-400">One-time key output</p>
@@ -310,7 +308,7 @@ export default function SettingsPage() {
             </div>
           )}
           <div className="overflow-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm ops-table">
               <thead>
                 <tr style={{ color: 'var(--text-muted)' }}>
                   <th className="text-left py-2">Preview</th>
@@ -328,16 +326,16 @@ export default function SettingsPage() {
                     <td className="py-2">{k.mode}</td>
                     <td className="py-2">{new Date(k.created_at).toLocaleString()}</td>
                     <td className="py-2">
-                      <button className="px-2 py-1 rounded bg-violet-600 text-white text-xs" onClick={() => rotateApiKey(k.id)}>
+                      <ActionButton variant="danger" className="inline-flex" onClick={() => rotateApiKey(k.id)}>
                         Rotate
-                      </button>
+                      </ActionButton>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
+        </Panel>
       )}
     </div>
   );

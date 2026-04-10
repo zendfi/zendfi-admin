@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ApiError, apiRequest } from '@/lib/api';
+import { ActionButton, InlineMessage, MetricTile, Panel, ShellTitle, StatusPill } from '@/components/ops-ui';
 
 type DashboardSnapshot = {
   platform_metrics: {
@@ -103,40 +104,38 @@ export default function AnalyticsPage() {
   }, [gas]);
 
   return (
-    <div className="space-y-4 max-w-6xl">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Platform Analytics</h2>
+    <div className="space-y-4 max-w-7xl">
+      <ShellTitle title="Platform Analytics" subtitle="Economic and infrastructure telemetry for command decisions" action={
         <div className="flex items-center gap-2">
           <select className="input-field px-2 py-1 text-xs" value={days} onChange={(e) => setDays(Number(e.target.value))}>
             <option value={7}>Last 7 days</option>
             <option value={14}>Last 14 days</option>
             <option value={30}>Last 30 days</option>
           </select>
-          <button className="px-2 py-1 rounded bg-violet-600 text-white text-xs" onClick={load}>Refresh</button>
+          <ActionButton variant="primary" onClick={load}>Refresh</ActionButton>
         </div>
-      </div>
+      } />
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <InlineMessage kind="error">{error}</InlineMessage>}
 
       {dashboard && (
         <div className="grid md:grid-cols-3 xl:grid-cols-6 gap-3">
-          <MetricCard label="Merchants" value={dashboard.platform_metrics.total_merchants.toString()} />
-          <MetricCard label="Payments" value={dashboard.platform_metrics.total_payments.toString()} />
-          <MetricCard label="Total Volume" value={`$${dashboard.platform_metrics.total_volume_usd.toFixed(2)}`} />
-          <MetricCard label="Volume Today" value={`$${dashboard.platform_metrics.volume_today.toFixed(2)}`} />
-          <MetricCard label="Growth (30d)" value={`${dashboard.growth_metrics.volume_growth_30d_percent.toFixed(2)}%`} />
-          <MetricCard label="Fraud Prevented" value={`$${dashboard.fraud_metrics.estimated_fraud_prevented_usd.toFixed(2)}`} />
+          <MetricTile label="Merchants" value={dashboard.platform_metrics.total_merchants.toString()} />
+          <MetricTile label="Payments" value={dashboard.platform_metrics.total_payments.toString()} />
+          <MetricTile label="Total Volume" value={`$${dashboard.platform_metrics.total_volume_usd.toFixed(2)}`} />
+          <MetricTile label="Volume Today" value={`$${dashboard.platform_metrics.volume_today.toFixed(2)}`} />
+          <MetricTile label="Growth (30d)" value={`${dashboard.growth_metrics.volume_growth_30d_percent.toFixed(2)}%`} tone={dashboard.growth_metrics.volume_growth_30d_percent >= 0 ? 'ok' : 'warn'} />
+          <MetricTile label="Fraud Prevented" value={`$${dashboard.fraud_metrics.estimated_fraud_prevented_usd.toFixed(2)}`} tone="info" />
         </div>
       )}
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="glass-card rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Gas Cost Analytics</h3>
+        <Panel title="Gas Cost Analytics" subtitle="Track spend profile by transaction type over selected time window">
           <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
             Transactions: {gasTotals.txCount} | Total gas spent: ${gasTotals.gasSpent.toFixed(4)}
           </p>
           <div className="overflow-auto max-h-72">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm ops-table">
               <thead>
                 <tr style={{ color: 'var(--text-muted)' }}>
                   <th className="text-left py-2">Date</th>
@@ -159,21 +158,20 @@ export default function AnalyticsPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </Panel>
 
-        <div className="glass-card rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Gas Profitability (30d)</h3>
+        <Panel title="Gas Profitability (30d)" subtitle="Fee margin versus gas costs to validate pricing assumptions">
           {profit && (
             <div className="space-y-2 mb-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
               <p>Total tx: {profit.summary.total_transactions}</p>
               <p>Total gas spent: ${toNum(profit.summary.total_gas_spent_usd).toFixed(6)}</p>
               <p>Total fee margin: ${toNum(profit.summary.total_fee_margin_usd).toFixed(6)}</p>
               <p>Net margin: ${toNum(profit.summary.net_margin_usd).toFixed(6)}</p>
-              <p>Status: <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{profit.summary.profitability_status}</span></p>
+              <p>Status: <StatusPill tone={profit.summary.profitability_status === 'excellent' || profit.summary.profitability_status === 'good' ? 'ok' : 'warn'}>{profit.summary.profitability_status}</StatusPill></p>
             </div>
           )}
           <div className="overflow-auto max-h-64">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm ops-table">
               <thead>
                 <tr style={{ color: 'var(--text-muted)' }}>
                   <th className="text-left py-2">Date</th>
@@ -192,13 +190,12 @@ export default function AnalyticsPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </Panel>
       </div>
 
-      <div className="glass-card rounded-xl p-4">
-        <h3 className="text-sm font-semibold mb-3">System Wallet Balances</h3>
+      <Panel title="System Wallet Balances" subtitle="Operational liquidity and pending settlement visibility">
         <div className="overflow-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm ops-table">
             <thead>
               <tr style={{ color: 'var(--text-muted)' }}>
                 <th className="text-left py-2">Type</th>
@@ -223,16 +220,7 @@ export default function AnalyticsPage() {
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="glass-card rounded-xl p-3">
-      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</p>
-      <p className="text-xl font-bold mt-1">{value}</p>
+      </Panel>
     </div>
   );
 }

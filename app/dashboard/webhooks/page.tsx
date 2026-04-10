@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiRequest } from '@/lib/api';
+import { ActionButton, InlineMessage, Panel, ShellTitle, StatusPill } from '@/components/ops-ui';
 
 type DlqEntry = {
   id: string;
@@ -58,16 +59,18 @@ export default function WebhooksPage() {
   }
 
   return (
-    <div className="space-y-4 max-w-6xl">
-      {error && <p className="text-sm text-red-400">{error}</p>}
+    <div className="space-y-4 max-w-7xl">
+      <ShellTitle
+        title="Webhook Reliability Ops"
+        subtitle="Monitor dead letters, resolve failures, and track delivery performance by event type"
+        action={<ActionButton variant="primary" onClick={load}>Refresh</ActionButton>}
+      />
 
-      <div className="glass-card rounded-xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold">Webhook DLQ</h2>
-          <button className="px-2 py-1 rounded bg-violet-600 text-white text-xs" onClick={load}>Refresh</button>
-        </div>
+      {error && <InlineMessage kind="error">{error}</InlineMessage>}
+
+      <Panel title="Dead-Letter Queue" subtitle="Items that exhausted retry policy and need operator action">
         <div className="overflow-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm ops-table">
             <thead>
               <tr style={{ color: 'var(--text-muted)' }}>
                 <th className="text-left py-2">ID</th>
@@ -87,20 +90,19 @@ export default function WebhooksPage() {
                   <td className="py-2">{d.failure_reason}</td>
                   <td className="py-2">{new Date(d.last_failure_at).toLocaleString()}</td>
                   <td className="py-2 space-x-2">
-                    <button className="px-2 py-1 text-xs rounded bg-emerald-600 text-white" onClick={() => resolve(d.id, 'resolved')}>Resolve</button>
-                    <button className="px-2 py-1 text-xs rounded bg-amber-600 text-white" onClick={() => resolve(d.id, 'ignored')}>Ignore</button>
+                    <ActionButton variant="primary" className="inline-flex" onClick={() => resolve(d.id, 'resolved')}>Resolve</ActionButton>
+                    <ActionButton variant="danger" className="inline-flex" onClick={() => resolve(d.id, 'ignored')}>Ignore</ActionButton>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </Panel>
 
-      <div className="glass-card rounded-xl p-4">
-        <h2 className="text-sm font-semibold mb-3">Webhook Metrics</h2>
+      <Panel title="Delivery Metrics" subtitle="Success rates and failure concentration by merchant and event">
         <div className="overflow-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm ops-table">
             <thead>
               <tr style={{ color: 'var(--text-muted)' }}>
                 <th className="text-left py-2">Merchant</th>
@@ -121,13 +123,17 @@ export default function WebhooksPage() {
                   <td className="py-2">{m.delivered_count ?? 0}</td>
                   <td className="py-2">{m.failed_count ?? 0}</td>
                   <td className="py-2">{m.dlq_count ?? 0}</td>
-                  <td className="py-2">{(m.success_rate_percent ?? 0).toFixed(2)}</td>
+                  <td className="py-2">
+                    <StatusPill tone={(m.success_rate_percent ?? 0) > 95 ? 'ok' : (m.success_rate_percent ?? 0) > 80 ? 'warn' : 'danger'}>
+                      {(m.success_rate_percent ?? 0).toFixed(2)}%
+                    </StatusPill>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }

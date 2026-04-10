@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ApiError, apiRequest } from '@/lib/api';
+import { ActionButton, InlineMessage, Panel, ShellTitle, StatusPill } from '@/components/ops-ui';
 
 type MerchantLookup = {
   merchant: {
@@ -104,17 +105,17 @@ export default function SupportPage() {
   }
 
   return (
-    <div className="space-y-4 max-w-6xl">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Support Operations</h2>
-        <button className="px-2 py-1 rounded bg-violet-600 text-white text-xs" onClick={findMerchant}>Refresh Merchant Context</button>
-      </div>
+    <div className="space-y-4 max-w-7xl">
+      <ShellTitle
+        title="Support Operations"
+        subtitle="Merchant diagnostics, security event context, and dispute resolution lane"
+        action={<ActionButton variant="primary" onClick={findMerchant}>Refresh Merchant Context</ActionButton>}
+      />
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      {success && <p className="text-sm text-emerald-400">{success}</p>}
+      {error && <InlineMessage kind="error">{error}</InlineMessage>}
+      {success && <InlineMessage kind="success">{success}</InlineMessage>}
 
-      <div className="glass-card rounded-xl p-4 space-y-3">
-        <h3 className="text-sm font-semibold">Merchant Support Lookup</h3>
+      <Panel title="Merchant Support Lookup" subtitle="Load account context to investigate incidents quickly" className="space-y-3">
         <div className="flex gap-2">
           <input
             className="input-field flex-1 px-3 py-2"
@@ -122,7 +123,7 @@ export default function SupportPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <button className="px-3 py-2 rounded bg-cyan-700 text-white text-xs" disabled={busy} onClick={findMerchant}>Search</button>
+          <ActionButton disabled={busy} onClick={findMerchant}>Search</ActionButton>
         </div>
 
         {merchantData && (
@@ -131,20 +132,19 @@ export default function SupportPage() {
             <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{merchantData.merchant.email}</p>
             <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Wallet: {merchantData.merchant.wallet_address}</p>
             <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              Live access: {merchantData.merchant.live_access_enabled ? 'enabled' : 'disabled'}
+              Live access: <StatusPill tone={merchantData.merchant.live_access_enabled ? 'ok' : 'warn'}>{merchantData.merchant.live_access_enabled ? 'enabled' : 'disabled'}</StatusPill>
             </p>
             <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
               Total payments: {merchantData.stats?.total_payments ?? 0} | Confirmed: {merchantData.stats?.confirmed_payments ?? 0} | Volume: {merchantData.stats?.total_volume_usd ?? '0'}
             </p>
           </div>
         )}
-      </div>
+      </Panel>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="glass-card rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Security Events</h3>
+        <Panel title="Security Events" subtitle="Recent security-relevant events for selected merchant">
           <div className="overflow-auto max-h-72">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm ops-table">
               <thead>
                 <tr style={{ color: 'var(--text-muted)' }}>
                   <th className="text-left py-2">Time</th>
@@ -163,12 +163,11 @@ export default function SupportPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </Panel>
 
-        <div className="glass-card rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">API Usage Timeline (24h)</h3>
+        <Panel title="API Usage Timeline (24h)" subtitle="Traffic stability and abuse/blocked signals">
           <div className="overflow-auto max-h-72">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm ops-table">
               <thead>
                 <tr style={{ color: 'var(--text-muted)' }}>
                   <th className="text-left py-2">Period</th>
@@ -189,11 +188,10 @@ export default function SupportPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </Panel>
       </div>
 
-      <div className="glass-card rounded-xl p-4 space-y-3">
-        <h3 className="text-sm font-semibold">Dispute Resolution</h3>
+      <Panel title="Dispute Resolution" subtitle="Resolve support escalations directly from admin console" className="space-y-3">
         <div className="grid md:grid-cols-4 gap-2">
           <input
             className="input-field px-3 py-2 md:col-span-2"
@@ -206,7 +204,7 @@ export default function SupportPage() {
             <option value="customer_favor">customer_favor</option>
             <option value="closed">closed</option>
           </select>
-          <button className="px-3 py-2 rounded bg-emerald-700 text-white text-xs" disabled={busy} onClick={resolveDispute}>Resolve</button>
+          <ActionButton variant="primary" disabled={busy} onClick={resolveDispute}>Resolve</ActionButton>
         </div>
         <input
           className="input-field w-full px-3 py-2"
@@ -214,7 +212,7 @@ export default function SupportPage() {
           value={resolutionNotes}
           onChange={(e) => setResolutionNotes(e.target.value)}
         />
-      </div>
+      </Panel>
     </div>
   );
 }

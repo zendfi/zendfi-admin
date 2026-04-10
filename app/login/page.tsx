@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiRequest, hydrateCsrfToken } from '@/lib/api';
 import { setAuthSession, type AdminProfile } from '@/lib/auth';
+import { ActionButton, InlineMessage, StatusPill } from '@/components/ops-ui';
 
 type LoginResponse = {
   token: string;
@@ -46,8 +47,13 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'var(--bg-base)' }}>
       <form onSubmit={onSubmit} className="glass-card rounded-2xl p-8 w-full max-w-md space-y-5">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>ZendFi Admin</h1>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Sign in to continue</p>
+          <p className="text-[11px] uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>ZendFi Ops</p>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Admin Command Center</h1>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Sign in to access operational controls</p>
+          <div className="mt-3 flex gap-2">
+            <StatusPill tone="ok">live</StatusPill>
+            <StatusPill tone="info">api.zendfi.tech</StatusPill>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -73,15 +79,16 @@ export default function LoginPage() {
           />
         </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <InlineMessage kind="error">{error}</InlineMessage>}
 
-        <button
+        <ActionButton
           type="submit"
           disabled={loading}
-          className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm disabled:opacity-60"
+          variant="primary"
+          className="w-full py-2.5 text-sm"
         >
           {loading ? 'Signing in...' : 'Sign in'}
-        </button>
+        </ActionButton>
       </form>
     </div>
   );
