@@ -60,12 +60,8 @@ html {
 body {
   font-family: var(--font-sans);
   background-color: var(--bg-base);
-  background-image:
-    linear-gradient(to right, var(--bg-grid) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--bg-grid) 1px, transparent 1px),
-    radial-gradient(circle at 12% 12%, rgba(56, 189, 248, 0.11), transparent 42%),
-    radial-gradient(circle at 86% 4%, rgba(79, 70, 229, 0.18), transparent 36%);
-  background-size: 36px 36px, 36px 36px, auto, auto;
+  background-image: none;
+  background-size: auto;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
@@ -82,16 +78,16 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--brand-1), var(--brand-2));
+  background: var(--text-muted);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, var(--brand-3), var(--brand-2));
+  background: var(--text-secondary);
 }
 
 .glass-card {
-  background: linear-gradient(165deg, color-mix(in srgb, var(--bg-panel) 92%, white 8%) 0%, var(--bg-panel-2) 100%);
+  background: var(--bg-panel);
   box-shadow: var(--shadow-panel);
   border: 1px solid var(--border);
   transition: border-color 0.2s ease, transform 0.2s ease;
@@ -112,7 +108,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 0.85rem;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 88%, transparent) 0%, color-mix(in srgb, var(--bg-panel) 94%, transparent) 100%);
+  background: var(--bg-panel-2);
 }
 
 .status-pill {
@@ -160,7 +156,7 @@ body {
 }
 
 .nav-active {
-  background: linear-gradient(90deg, rgba(70, 165, 255, 0.24) 0%, rgba(70, 165, 255, 0.08) 100%);
+  background: rgba(70, 165, 255, 0.14);
   border: 1px solid rgba(70, 165, 255, 0.42);
   color: var(--text-primary);
 }
@@ -199,10 +195,10 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
+  background: var(--brand-1);
   color: white;
   font-weight: 600;
-  border: 1px solid rgba(132, 197, 255, 0.35);
+  border: 1px solid var(--brand-1);
   border-radius: 10px;
   transition: filter 0.18s ease, transform 0.18s ease;
 }

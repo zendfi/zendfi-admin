@@ -75,7 +75,7 @@ export default function Sidebar() {
                 className="flex items-center gap-3 px-5 py-5"
                 style={{ borderBottom: '1px solid var(--border)' }}
             >
-                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-violet-600 shrink-0">
+                <div className="flex items-center justify-center w-9 h-9 rounded-xl shrink-0" style={{ background: 'var(--brand-1)' }}>
                     <Zap size={18} className="text-white" />
                 </div>
                 {!collapsed && (
@@ -147,7 +147,7 @@ export default function Sidebar() {
             <div className="p-3" style={{ borderTop: '1px solid var(--border)' }}>
                 {!collapsed && (
                     <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--brand-1)' }}>
                             <span className="text-white text-xs font-bold">AO</span>
                         </div>
                         <div className="flex-1 min-w-0">
